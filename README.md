@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 # StockFlow
 
 A modern stock market trading dashboard built with Next.js.
