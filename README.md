@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # StockFlow
 
 A modern stock market trading dashboard built with Next.js.
@@ -42,3 +43,6 @@ npm run dev
 - TypeScript
 - Tailwind CSS
 - Radix UI
+=======
+# Stock market app
+>>>>>>> cd36a7a86c7a66dca6b7875a9c6d5ac4087ee653
