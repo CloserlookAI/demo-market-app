@@ -65,6 +65,7 @@ interface Stock {
   exchange?: string
 }
 
+
 export default function StockMarketDashboard() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
@@ -80,9 +81,30 @@ export default function StockMarketDashboard() {
     { name: "DOW JONES", symbol: "DJI", value: 0, change: 0, changePercent: 0 },
   ])
 
+  // Search functionality
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [showSearchResults, setShowSearchResults] = useState(false)
+
   useEffect(() => {
     loadRealTimeData()
   }, [])
+
+  // Close search dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element
+      if (!target.closest('.search-container')) {
+        setShowSearchResults(false)
+      }
+    }
+
+    if (showSearchResults) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showSearchResults])
 
   const loadRealTimeData = async () => {
     setIsLoading(true)
@@ -238,6 +260,68 @@ export default function StockMarketDashboard() {
     setTimeframe(newTimeframe)
   }
 
+  // Search functions
+  const handleSearchChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value
+    setSearchQuery(query)
+
+    if (query.length < 2) {
+      setSearchResults([])
+      setShowSearchResults(false)
+      return
+    }
+
+    setIsSearching(true)
+    try {
+      const response = await fetch(`/api/stocks/search?q=${encodeURIComponent(query)}`)
+      const data = await response.json()
+      setSearchResults(data.results || [])
+      setShowSearchResults(true)
+    } catch (error) {
+      console.error('Search error:', error)
+      setSearchResults([])
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  const handleSelectSearchResult = async (stock: any) => {
+    try {
+      // Get real-time quote for the selected stock
+      const response = await fetch(`/api/stocks/quote?symbol=${stock.symbol}`)
+      if (response.ok) {
+        const quoteData = await response.json()
+        const newStock: Stock = {
+          symbol: stock.symbol,
+          name: stock.name,
+          price: quoteData.price,
+          change: quoteData.change,
+          changePercent: quoteData.changePercent,
+          volume: quoteData.volume,
+          marketCap: quoteData.marketCap,
+          currency: quoteData.currency,
+          exchange: quoteData.exchange
+        }
+        setSelectedStock(newStock)
+      }
+    } catch (error) {
+      console.error('Error fetching stock quote:', error)
+    }
+    setShowSearchResults(false)
+    setSearchQuery('')
+  }
+
+  const handleAddToWishlist = (stock: Stock) => {
+    const isAlreadyInWishlist = watchlistStocks.some(w => w.symbol === stock.symbol)
+    if (!isAlreadyInWishlist) {
+      setWatchlistStocks(prev => [...prev, stock])
+    }
+  }
+
+  const handleRemoveFromWishlist = (symbol: string) => {
+    setWatchlistStocks(prev => prev.filter(stock => stock.symbol !== symbol))
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-white">
@@ -272,7 +356,7 @@ export default function StockMarketDashboard() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">StockFlow</h1>
-                <p className="text-sm text-gray-600">Professional Trading Dashboard</p>
+                <p className="text-sm text-gray-600">Trading Dashboard</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -292,58 +376,101 @@ export default function StockMarketDashboard() {
         <section className="mb-12">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-3xl font-bold text-gray-900">Market Overview</h2>
-            <div className="flex items-center space-x-2 text-sm text-gray-600">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span>Live updates</span>
+            <div className="flex items-center space-x-4">
+              {/* Search Bar */}
+              <div className="relative search-container">
+                <input
+                  type="text"
+                  placeholder="Search stocks..."
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  className="w-80 px-4 py-2 pl-10 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent bg-white"
+                />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+
+                {/* Search Results Dropdown */}
+                {showSearchResults && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-y-auto z-50">
+                    {isSearching ? (
+                      <div className="p-4 text-center text-gray-500">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-black mx-auto mb-2"></div>
+                        Searching...
+                      </div>
+                    ) : searchResults.length > 0 ? (
+                      <div className="py-2">
+                        {searchResults.map((result, i) => (
+                          <div
+                            key={i}
+                            onClick={() => handleSelectSearchResult(result)}
+                            className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="font-semibold text-gray-900">{result.symbol}</div>
+                                <div className="text-sm text-gray-600 truncate">{result.name}</div>
+                                <div className="text-xs text-gray-500">{result.exchange} • {result.type}</div>
+                              </div>
+                              <div className="ml-3">
+                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-4 text-center text-gray-500">No results found</div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span>Live updates</span>
+              </div>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            {marketIndices.map((index, i) => {
-              const isPositive = index.change >= 0
-              const TrendIcon = isPositive ? TrendingUpIcon : TrendingDownIcon
-              const trendColor = isPositive ? "text-green-600" : "text-red-600"
-              const bgColor = isPositive ? "bg-green-50" : "bg-red-50"
-
-              return (
-                <Card key={i} className="card-hover bg-white border border-gray-200 shadow-sm">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600">{index.name}</CardTitle>
-                    <BarChartIcon />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-gray-900 mb-2">{index.value.toLocaleString()}</div>
-                    <div className={`flex items-center gap-2 text-sm px-2 py-1 rounded ${bgColor}`}>
-                      <TrendIcon />
-                      <span className={`font-medium ${trendColor}`}>
-                        {index.changePercent > 0 ? "+" : ""}
-                        {index.changePercent.toFixed(1)}%
-                      </span>
-                      <span className="text-gray-600">
-                        ({index.change > 0 ? "+" : ""}
-                        {index.change.toFixed(2)})
-                      </span>
+          {/* Top Performing Stocks Marquee */}
+          <div className="bg-black rounded-lg p-4 mb-6">
+            <div className="flex items-center space-x-2 mb-3">
+              <TrendingUpIcon className="w-5 h-5 text-green-400" />
+              <span className="text-white font-semibold text-sm">TOP PERFORMERS TODAY</span>
+            </div>
+            <div className="overflow-hidden">
+              <div className="flex space-x-8 animate-marquee">
+                {[...trendingStocks, ...trendingStocks].map((stock, i) => {
+                  const isPositive = stock.changePercent >= 0
+                  return (
+                    <div
+                      key={`${stock.symbol}-${i}`}
+                      className="flex items-center space-x-3 whitespace-nowrap cursor-pointer hover:bg-gray-800 px-3 py-2 rounded-lg transition-colors"
+                      onClick={() => handleStockClick(stock)}
+                    >
+                      <span className="text-white font-semibold text-sm">{stock.symbol}</span>
+                      <span className="text-white font-bold">{formatCurrency(stock.price)}</span>
+                      <div className={`flex items-center space-x-1 ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                        {isPositive ? (
+                          <TrendingUpIcon className="w-3 h-3" />
+                        ) : (
+                          <TrendingDownIcon className="w-3 h-3" />
+                        )}
+                        <span className="font-medium text-xs">
+                          {stock.changePercent > 0 ? "+" : ""}{stock.changePercent.toFixed(2)}%
+                        </span>
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
-
-            {/* Portfolio Value Card */}
-            <Card className="card-hover bg-white border border-gray-200 shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Portfolio Value</CardTitle>
-                <DollarSignIcon />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-gray-900 mb-2">{formatCurrency(127456.78)}</div>
-                <div className="flex items-center gap-2 text-sm px-2 py-1 rounded bg-green-50">
-                  <TrendingUpIcon />
-                  <span className="font-medium text-green-600">+2.1%</span>
-                  <span className="text-gray-600">(+{formatCurrency(2634.12)})</span>
-                </div>
-              </CardContent>
-            </Card>
+                  )
+                })}
+              </div>
+            </div>
           </div>
+
+
         </section>
 
         {/* Interactive Trading Chart */}
@@ -352,6 +479,35 @@ export default function StockMarketDashboard() {
             <CardContent className="p-6">
               {mainStock ? (
                 <>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-4">
+                      <h3 className="text-xl font-bold text-gray-900">{mainStock.symbol} - {mainStock.name}</h3>
+                      {mainStock.exchange && (
+                        <span className="text-sm text-gray-500">{mainStock.exchange}</span>
+                      )}
+                    </div>
+                    <Button
+                      onClick={() => handleAddToWishlist(mainStock)}
+                      className="bg-black hover:bg-gray-800 text-white"
+                      disabled={watchlistStocks.some(w => w.symbol === mainStock.symbol)}
+                    >
+                      {watchlistStocks.some(w => w.symbol === mainStock.symbol) ? (
+                        <>
+                          <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                          </svg>
+                          In Wishlist
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                          </svg>
+                          Add to Wishlist
+                        </>
+                      )}
+                    </Button>
+                  </div>
                   {isLoadingChart ? (
                     <div className="h-96 flex items-center justify-center">
                       <div className="flex items-center gap-2">
@@ -381,134 +537,73 @@ export default function StockMarketDashboard() {
           </Card>
         </section>
 
-        {/* Dashboard Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
-          {/* Trending Stocks */}
-          <div className="lg:col-span-2">
-            <Card className="bg-white border border-gray-200 shadow-sm">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-xl text-gray-900">Trending Stocks</CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push('/search')}
-                    className="bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
-                  >
-                    View All
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {trendingStocks.map((stock, i) => {
-                  const isPositive = stock.change >= 0
-                  const TrendIcon = isPositive ? TrendingUpIcon : TrendingDownIcon
-                  const trendColor = isPositive ? "text-green-600" : "text-red-600"
-                  const bgColor = isPositive ? "bg-green-50" : "bg-red-50"
-                  const isSelected = selectedStock?.symbol === stock.symbol
-
-                  return (
-                    <div
-                      key={i}
-                      onClick={() => handleStockClick(stock)}
-                      className={`flex items-center justify-between p-4 rounded-lg hover:bg-gray-100 transition-all duration-200 cursor-pointer group border ${
-                        isSelected ? 'border-black bg-gray-50' : 'border-gray-200 bg-gray-50'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-4">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          isSelected ? 'bg-black' : 'bg-black'
-                        }`}>
-                          <span className="text-white font-bold text-sm">{stock.symbol[0]}</span>
-                        </div>
-                        <div>
-                          <div className={`font-semibold transition-colors ${
-                            isSelected ? 'text-black' : 'text-gray-900 group-hover:text-black'
-                          }`}>
-                            {stock.symbol}
-                          </div>
-                          <div className="text-sm text-gray-600">{stock.name}</div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-semibold text-gray-900">{formatCurrency(stock.price)}</div>
-                        <div className={`flex items-center gap-1 justify-end px-2 py-1 rounded ${bgColor}`}>
-                          <TrendIcon />
-                          <span className={`text-sm font-medium ${trendColor}`}>
-                            {stock.changePercent > 0 ? "+" : ""}
-                            {stock.changePercent.toFixed(1)}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Watchlist */}
-          <div className="lg:col-span-1">
+        {/* Wishlist */}
+        {watchlistStocks.length > 0 && (
+          <section className="mb-12">
             <Card className="bg-white border border-gray-200 shadow-sm">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-xl text-gray-900 flex items-center gap-2">
-                    <PieChartIcon />
-                    Watchlist
+                    <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                    </svg>
+                    My Wishlist
                   </CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push('/search')}
-                    className="bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
-                  >
-                    + Add
-                  </Button>
+                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <span>{watchlistStocks.length} stocks</span>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                {watchlistStocks.length > 0 ? (
-                  watchlistStocks.map((stock, i) => {
-                    const isPositive = stock.changePercent >= 0
-                    const trendColor = isPositive ? "text-green-600" : "text-red-600"
-                    const isSelected = selectedStock?.symbol === stock.symbol
-
-                    return (
-                      <div
-                        key={i}
-                        onClick={() => handleStockClick(stock)}
-                        className={`flex items-center justify-between p-3 rounded-lg hover:bg-gray-100 transition-all duration-200 cursor-pointer border ${
-                          isSelected ? 'border-black bg-gray-50' : 'border-gray-200 bg-gray-50'
-                        }`}
-                      >
-                        <span className="font-semibold text-gray-900">{stock.symbol}</span>
-                        <div className="text-right">
-                          <div className="text-sm font-medium text-gray-900">{formatCurrency(stock.price)}</div>
-                          <div className={`text-xs font-medium ${trendColor}`}>
-                            {stock.changePercent > 0 ? "+" : ""}{stock.changePercent.toFixed(1)}%
-                          </div>
+                {watchlistStocks.map((stock, index) => (
+                  <div
+                    key={stock.symbol}
+                    className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-all duration-200 cursor-pointer"
+                    onClick={() => handleStockClick(stock)}
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
+                        <span className="text-white font-bold text-sm">{stock.symbol[0]}</span>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-900">{stock.symbol}</div>
+                        <div className="text-sm text-gray-600 truncate">{stock.name}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <div className="text-right">
+                        <div className="font-bold text-gray-900">{formatCurrency(stock.price)}</div>
+                        <div className={`flex items-center gap-1 text-sm font-medium ${
+                          stock.changePercent >= 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {stock.changePercent >= 0 ? (
+                            <TrendingUpIcon className="w-3 h-3" />
+                          ) : (
+                            <TrendingDownIcon className="w-3 h-3" />
+                          )}
+                          {stock.changePercent > 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%
                         </div>
                       </div>
-                    )
-                  })
-                ) : (
-                  <div className="text-center py-8">
-                    <PieChartIcon />
-                    <p className="text-gray-600 mt-2 mb-4">No stocks in watchlist</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => router.push('/search')}
-                      className="bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
-                    >
-                      Add Stocks
-                    </Button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRemoveFromWishlist(stock.symbol)
+                        }}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Remove from wishlist"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                )}
+                ))}
               </CardContent>
             </Card>
-          </div>
-        </div>
+          </section>
+        )}
 
         {/* Quick Actions */}
         <section className="mb-8">

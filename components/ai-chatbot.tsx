@@ -82,22 +82,15 @@ How can I assist you with your trading today?`,
 
   if (!isOpen) {
     return (
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className="fixed bottom-4 right-4 z-50">
         <div className="relative group">
           <Button
             onClick={() => setIsOpen(true)}
             size="lg"
-            className="rounded-full w-16 h-16 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 bg-black hover:bg-gray-800 border-2 border-gray-200"
+            className="rounded-full w-14 h-14 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 bg-black hover:bg-gray-800"
           >
-            <MessageCircle className="w-7 h-7 text-white" />
+            <MessageCircle className="w-6 h-6 text-white" />
           </Button>
-
-          {/* Status indicator */}
-          <div className="absolute -top-1 -right-1">
-            <div className="w-5 h-5 bg-green-500 rounded-full animate-pulse shadow-md">
-              <div className="w-full h-full bg-white/20 rounded-full animate-ping"></div>
-            </div>
-          </div>
 
           {/* Tooltip */}
           <div className="absolute bottom-full right-0 mb-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
@@ -112,10 +105,10 @@ How can I assist you with your trading today?`,
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed bottom-16 right-4 z-50">
       <Card className={cn(
         "w-[420px] shadow-xl border border-gray-200 transition-all duration-300 bg-white",
-        isMinimized ? "h-16" : "h-[650px]",
+        isMinimized ? "h-16" : "h-[600px]",
         "animate-fade-in"
       )}>
         <CardHeader className="flex flex-row items-center justify-between p-4 bg-black text-white rounded-t-lg border-b border-gray-200">
@@ -126,7 +119,6 @@ How can I assist you with your trading today?`,
             <div className="flex-1 min-w-0">
               <CardTitle className="text-sm font-semibold leading-tight truncate text-white">StockFlow AI</CardTitle>
               <div className="flex items-center gap-2 text-xs opacity-90 mt-1">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse shadow-sm" />
                 <span className="truncate">Professional Assistant</span>
               </div>
             </div>
@@ -155,7 +147,7 @@ How can I assist you with your trading today?`,
         </CardHeader>
 
         {!isMinimized && (
-          <CardContent className="flex flex-col h-[calc(650px-64px)] p-0 bg-white">
+          <CardContent className="flex flex-col h-[calc(600px-64px)] p-0 bg-white">
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
               {messages.map((message, index) => (
@@ -259,8 +251,8 @@ How can I assist you with your trading today?`,
             )}
 
             {/* Input Area */}
-            <div className="border-t border-gray-200 p-4 bg-gray-50/50">
-              <form onSubmit={handleSubmit} className="flex gap-3">
+            <div className="border-t border-gray-200 p-4 bg-gray-50/50 flex-shrink-0 mt-auto">
+              <form onSubmit={handleSubmit} className="flex gap-3 items-center">
                 <div className="flex-1 relative">
                   <input
                     ref={inputRef}
@@ -284,7 +276,7 @@ How can I assist you with your trading today?`,
                   type="submit"
                   size="sm"
                   disabled={isLoading || !input.trim()}
-                  className="px-4 py-3 bg-black hover:bg-gray-800 text-white border-0 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50"
+                  className="px-4 h-12 bg-black hover:bg-gray-800 text-white border-0 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 flex-shrink-0"
                 >
                   {isLoading ? (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -293,10 +285,6 @@ How can I assist you with your trading today?`,
                   )}
                 </Button>
               </form>
-              <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mt-3">
-                <Sparkles className="w-3 h-3" />
-                <span>AI responses are for informational purposes. Always do your own research.</span>
-              </div>
             </div>
           </CardContent>
         )}
