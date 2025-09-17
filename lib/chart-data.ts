@@ -1,151 +1,147 @@
-// Chart data utilities for generating realistic stock market data
-export interface ChartDataPoint {
-  timestamp: string
-  date: string
-  price: number
-  volume: number
-  high: number
-  low: number
-  open: number
-  close: number
-}
-
-export interface TimeSeriesData {
-  symbol: string
-  data: ChartDataPoint[]
-}
-
-// Generate realistic intraday data for charts
-export const generateIntradayData = (symbol: string, basePrice: number): ChartDataPoint[] => {
-  const data: ChartDataPoint[] = []
-  const now = new Date()
-  const marketOpen = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 30) // 9:30 AM
-  const currentTime = new Date()
+// Generate realistic stock chart data
+export function generateChartData(
+  symbol: string,
+  basePrice: number,
+  timeframe: '1D' | '1W' | '1M' | '3M' | '1Y' = '1D',
+  trend: 'up' | 'down' | 'volatile' = 'up'
+) {
+  const dataPoints: Array<{
+    time: string
+    price: number
+    volume: number
+  }> = []
 
   let currentPrice = basePrice
-  let currentVolume = Math.floor(Math.random() * 1000000) + 500000
+  let pointCount: number
+  let timeIncrement: number
+  let timeUnit: string
 
-  // Generate data points every 5 minutes from market open to current time
-  for (let time = new Date(marketOpen); time <= currentTime; time.setMinutes(time.getMinutes() + 5)) {
-    // Simulate price movement with some volatility
-    const volatility = 0.02 // 2% volatility
-    const change = (Math.random() - 0.5) * volatility * currentPrice
-    currentPrice += change
+  // Configure data points based on timeframe
+  switch (timeframe) {
+    case '1D':
+      pointCount = 78 // Every 5 minutes during market hours (6.5 hours)
+      timeIncrement = 5
+      timeUnit = 'minutes'
+      break
+    case '1W':
+      pointCount = 35 // Every hour for 5 days
+      timeIncrement = 1
+      timeUnit = 'hours'
+      break
+    case '1M':
+      pointCount = 30 // Daily for 1 month
+      timeIncrement = 1
+      timeUnit = 'days'
+      break
+    case '3M':
+      pointCount = 65 // Every 1.4 days for 3 months
+      timeIncrement = 1.4
+      timeUnit = 'days'
+      break
+    case '1Y':
+      pointCount = 52 // Weekly for 1 year
+      timeIncrement = 7
+      timeUnit = 'days'
+      break
+  }
 
-    // Ensure price doesn't go negative
-    currentPrice = Math.max(currentPrice, basePrice * 0.8)
+  const volatility = {
+    up: 0.02,
+    down: 0.02,
+    volatile: 0.05
+  }[trend]
 
-    // Generate OHLC data
-    const high = currentPrice + Math.random() * 0.01 * currentPrice
-    const low = currentPrice - Math.random() * 0.01 * currentPrice
-    const open = data.length > 0 ? data[data.length - 1].close : currentPrice
+  const trendDirection = {
+    up: 0.0003,
+    down: -0.0003,
+    volatile: 0
+  }[trend]
 
-    // Volume varies throughout the day
-    currentVolume = Math.floor(Math.random() * 200000) + 100000
+  // Generate data points
+  for (let i = 0; i < pointCount; i++) {
+    const randomChange = (Math.random() - 0.5) * 2 * volatility
+    const trendChange = trendDirection * i
+    const priceChange = randomChange + trendChange
 
-    data.push({
-      timestamp: time.toISOString(),
-      date: time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
-      price: Number(currentPrice.toFixed(2)),
-      volume: currentVolume,
-      high: Number(high.toFixed(2)),
-      low: Number(low.toFixed(2)),
-      open: Number(open.toFixed(2)),
-      close: Number(currentPrice.toFixed(2)),
+    currentPrice = Math.max(currentPrice * (1 + priceChange), 0.01)
+
+    // Generate time label
+    let timeLabel: string
+    const now = new Date()
+
+    switch (timeframe) {
+      case '1D':
+        const marketOpen = new Date(now)
+        marketOpen.setHours(9, 30, 0, 0) // 9:30 AM market open
+        const time = new Date(marketOpen.getTime() + i * timeIncrement * 60000)
+        timeLabel = time.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        })
+        break
+      case '1W':
+        const weekStart = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000)
+        const hourTime = new Date(weekStart.getTime() + i * timeIncrement * 60 * 60 * 1000)
+        timeLabel = hourTime.toLocaleDateString('en-US', {
+          weekday: 'short',
+          hour: 'numeric'
+        })
+        break
+      case '1M':
+        const monthStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+        const dayTime = new Date(monthStart.getTime() + i * timeIncrement * 24 * 60 * 60 * 1000)
+        timeLabel = dayTime.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric'
+        })
+        break
+      case '3M':
+        const threeMonthStart = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+        const dayTime3M = new Date(threeMonthStart.getTime() + i * timeIncrement * 24 * 60 * 60 * 1000)
+        timeLabel = dayTime3M.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric'
+        })
+        break
+      case '1Y':
+        const yearStart = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
+        const weekTime = new Date(yearStart.getTime() + i * timeIncrement * 24 * 60 * 60 * 1000)
+        timeLabel = weekTime.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric'
+        })
+        break
+    }
+
+    // Generate volume (higher volume during price movements)
+    const volumeBase = 1000000 + Math.random() * 5000000
+    const volumeMultiplier = 1 + Math.abs(priceChange) * 10
+    const volume = Math.floor(volumeBase * volumeMultiplier)
+
+    dataPoints.push({
+      time: timeLabel,
+      price: currentPrice,
+      volume: volume
     })
   }
 
-  return data
+  return dataPoints
 }
 
-// Generate historical data for longer time periods
-export const generateHistoricalData = (symbol: string, basePrice: number, days: number): ChartDataPoint[] => {
-  const data: ChartDataPoint[] = []
-  const now = new Date()
-
-  let currentPrice = basePrice * 0.9 // Start 10% lower to show growth
-
-  for (let i = days; i >= 0; i--) {
-    const date = new Date(now)
-    date.setDate(date.getDate() - i)
-
-    // Skip weekends for stock data
-    if (date.getDay() === 0 || date.getDay() === 6) continue
-
-    // Simulate daily price movement
-    const dailyChange = (Math.random() - 0.45) * 0.05 * currentPrice // Slight upward bias
-    currentPrice += dailyChange
-
-    // Ensure reasonable bounds
-    currentPrice = Math.max(currentPrice, basePrice * 0.5)
-    currentPrice = Math.min(currentPrice, basePrice * 1.5)
-
-    const high = currentPrice + Math.random() * 0.03 * currentPrice
-    const low = currentPrice - Math.random() * 0.03 * currentPrice
-    const open = data.length > 0 ? data[data.length - 1].close : currentPrice
-    const volume = Math.floor(Math.random() * 5000000) + 1000000
-
-    data.push({
-      timestamp: date.toISOString(),
-      date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      price: Number(currentPrice.toFixed(2)),
-      volume: volume,
-      high: Number(high.toFixed(2)),
-      low: Number(low.toFixed(2)),
-      open: Number(open.toFixed(2)),
-      close: Number(currentPrice.toFixed(2)),
-    })
-  }
-
-  return data
+// Stock data with trends
+export const stockTrends: Record<string, 'up' | 'down' | 'volatile'> = {
+  'AAPL': 'up',
+  'TSLA': 'volatile',
+  'GOOGL': 'down',
+  'MSFT': 'up',
+  'NVDA': 'up',
+  'AMZN': 'down',
+  'META': 'volatile',
+  'NFLX': 'up'
 }
 
-// Market sentiment data for additional charts
-export interface SentimentData {
-  date: string
-  bullish: number
-  bearish: number
-  neutral: number
+export function getStockChartData(symbol: string, basePrice: number, timeframe: '1D' | '1W' | '1M' | '3M' | '1Y' = '1D') {
+  const trend = stockTrends[symbol] || 'volatile'
+  return generateChartData(symbol, basePrice, timeframe, trend)
 }
-
-export const generateSentimentData = (): SentimentData[] => {
-  const data: SentimentData[] = []
-  const now = new Date()
-
-  for (let i = 30; i >= 0; i--) {
-    const date = new Date(now)
-    date.setDate(date.getDate() - i)
-
-    // Generate sentiment percentages that add up to 100
-    const bullish = Math.floor(Math.random() * 40) + 30 // 30-70%
-    const bearish = Math.floor(Math.random() * 30) + 10 // 10-40%
-    const neutral = 100 - bullish - bearish
-
-    data.push({
-      date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      bullish,
-      bearish,
-      neutral,
-    })
-  }
-
-  return data
-}
-
-// Sector performance data
-export interface SectorData {
-  sector: string
-  performance: number
-  marketCap: number
-}
-
-export const getSectorData = (): SectorData[] => [
-  { sector: "Technology", performance: 2.4, marketCap: 15.2 },
-  { sector: "Healthcare", performance: 1.8, marketCap: 8.7 },
-  { sector: "Financial", performance: -0.5, marketCap: 12.1 },
-  { sector: "Consumer", performance: 1.2, marketCap: 6.8 },
-  { sector: "Energy", performance: 3.1, marketCap: 4.2 },
-  { sector: "Industrial", performance: 0.8, marketCap: 5.9 },
-  { sector: "Materials", performance: -1.2, marketCap: 3.4 },
-  { sector: "Utilities", performance: 0.3, marketCap: 2.8 },
-]

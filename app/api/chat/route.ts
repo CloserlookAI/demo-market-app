@@ -6,7 +6,7 @@ export const maxDuration = 30
 export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json()
 
-  const systemPrompt = `You are StockFlow Pro AI, an expert financial advisor and stock market analyst. You help users with:
+  const systemPrompt = `You are StockFlow AI, an expert financial advisor and stock market analyst. You help users with:
 
 1. Stock analysis and recommendations
 2. Market trends and insights
@@ -31,8 +31,21 @@ Remember to always include appropriate disclaimers about investment risks and th
 
   const prompt = [{ role: "system" as const, content: systemPrompt }, ...convertToModelMessages(messages)]
 
+  // Use PERPLEXITY_API_KEY if available, otherwise fall back to OPENAI_API_KEY
+  const apiKey = process.env.PERPLEXITY_API_KEY || process.env.OPENAI_API_KEY
+
+  if (!apiKey) {
+    return new Response(
+      JSON.stringify({ error: "API key not configured. Please set PERPLEXITY_API_KEY or OPENAI_API_KEY in your environment variables." }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    )
+  }
+
   const result = streamText({
-    model: openai("gpt-4o"),
+    model: openai("gpt-4o", {
+      apiKey: apiKey,
+      baseURL: process.env.PERPLEXITY_API_KEY ? "https://api.perplexity.ai" : undefined
+    }),
     messages: prompt,
     maxTokens: 1000,
     temperature: 0.7,

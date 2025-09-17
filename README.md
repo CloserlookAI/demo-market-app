@@ -1,30 +1,44 @@
-# Stock market app
+# StockFlow
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+A modern stock market trading dashboard built with Next.js.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/sagardev519-3681s-projects/v0-stock-market-app)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/projects/3pBQjrAJGrI)
+## Getting Started
 
-## Overview
+### Prerequisites
+- Node.js 18+
+- npm or yarn
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+### Installation
 
-## Deployment
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd demo
+```
 
-Your project is live at:
+2. Install dependencies:
+```bash
+npm install
+```
 
-**[https://vercel.com/sagardev519-3681s-projects/v0-stock-market-app](https://vercel.com/sagardev519-3681s-projects/v0-stock-market-app)**
+3. Run the development server:
+```bash
+npm run dev
+```
 
-## Build your app
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-Continue building your app on:
+## Available Scripts
 
-**[https://v0.app/chat/projects/3pBQjrAJGrI](https://v0.app/chat/projects/3pBQjrAJGrI)**
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run linter
 
-## How It Works
+## Tech Stack
 
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+- Next.js 14
+- React 18
+- TypeScript
+- Tailwind CSS
+- Radix UI

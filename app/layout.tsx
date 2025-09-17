@@ -18,9 +18,9 @@ const dmSans = DM_Sans({
 })
 
 export const metadata: Metadata = {
-  title: "StockFlow Pro - Premium Trading Dashboard",
+  title: "StockFlow - Trading Dashboard",
   description: "Next-generation stock market app with AI-powered insights",
-  generator: "v0.app",
+  generator: "Next.js",
 }
 
 export default function RootLayout({

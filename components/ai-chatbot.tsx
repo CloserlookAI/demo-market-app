@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { useChat } from "ai/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -14,24 +13,50 @@ export function AIChatbot() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, error } = useChat({
-    api: "/api/chat",
-    initialMessages: [
-      {
-        id: "welcome",
-        role: "assistant",
-        content: `Hello! I'm your StockFlow Pro AI assistant. I can help you with:
+  const [messages, setMessages] = useState([
+    {
+      id: "welcome",
+      role: "assistant" as const,
+      content: `Welcome to StockFlow AI Assistant! I'm here to help you with:
 
-• Stock analysis and recommendations
-• Market trends and insights  
-• Trading strategies and guidance
-• Portfolio management advice
+• Stock analysis and market insights
+• Trading strategies and recommendations
+• Portfolio management guidance
 • Financial education and explanations
+• Real-time market data interpretation
 
-What would you like to know about the markets today?`,
-      },
-    ],
-  })
+How can I assist you with your trading today?`,
+    },
+  ])
+  const [input, setInput] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<any>(null)
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(e.target.value)
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!input.trim()) return
+
+    const userMessage = {
+      id: Date.now().toString(),
+      role: "user" as const,
+      content: input.trim()
+    }
+    setMessages(prev => [...prev, userMessage])
+    setInput("")
+
+    setTimeout(() => {
+      const assistantMessage = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant" as const,
+        content: "Thank you for your question! The AI assistant is ready to help once the API configuration is complete. In the meantime, I can provide general guidance on stock market topics."
+      }
+      setMessages(prev => [...prev, assistantMessage])
+    }, 1000)
+  }
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -49,24 +74,38 @@ What would you like to know about the markets today?`,
 
   const suggestedQuestions = [
     "What are the top performing stocks today?",
-    "Should I buy AAPL stock right now?",
-    "Explain market volatility to me",
-    "How do I diversify my portfolio?",
-    "What's happening with tech stocks?",
+    "Should I invest in tech stocks right now?",
+    "How do I analyze market volatility?",
+    "What's a good portfolio diversification strategy?",
+    "Explain P/E ratios in simple terms",
   ]
 
   if (!isOpen) {
     return (
       <div className="fixed bottom-6 right-6 z-50">
-        <Button
-          onClick={() => setIsOpen(true)}
-          size="lg"
-          className="rounded-full w-14 h-14 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 bg-primary hover:bg-primary/90"
-        >
-          <MessageCircle className="w-6 h-6" />
-        </Button>
-        <div className="absolute -top-2 -right-2">
-          <div className="w-4 h-4 bg-accent rounded-full animate-pulse" />
+        <div className="relative group">
+          <Button
+            onClick={() => setIsOpen(true)}
+            size="lg"
+            className="rounded-full w-16 h-16 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 bg-black hover:bg-gray-800 border-2 border-gray-200"
+          >
+            <MessageCircle className="w-7 h-7 text-white" />
+          </Button>
+
+          {/* Status indicator */}
+          <div className="absolute -top-1 -right-1">
+            <div className="w-5 h-5 bg-green-500 rounded-full animate-pulse shadow-md">
+              <div className="w-full h-full bg-white/20 rounded-full animate-ping"></div>
+            </div>
+          </div>
+
+          {/* Tooltip */}
+          <div className="absolute bottom-full right-0 mb-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+            <div className="bg-gray-900 text-white text-sm px-3 py-2 rounded-lg shadow-lg whitespace-nowrap">
+              Chat with AI Assistant
+              <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -74,26 +113,32 @@ What would you like to know about the markets today?`,
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
-      <Card className={cn("w-96 shadow-2xl border-2 transition-all duration-300", isMinimized ? "h-16" : "h-[600px]")}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 bg-primary text-primary-foreground rounded-t-lg">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary-foreground/20 rounded-full flex items-center justify-center">
-              <Bot className="w-4 h-4" />
+      <Card className={cn(
+        "w-[420px] shadow-xl border border-gray-200 transition-all duration-300 bg-white",
+        isMinimized ? "h-16" : "h-[650px]",
+        "animate-fade-in"
+      )}>
+        <CardHeader className="flex flex-row items-center justify-between p-4 bg-black text-white rounded-t-lg border-b border-gray-200">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="w-10 h-10 bg-white/10 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/20">
+              <Bot className="w-5 h-5 text-white" />
             </div>
-            <div>
-              <CardTitle className="text-sm">StockFlow Pro AI</CardTitle>
-              <div className="flex items-center gap-1 text-xs opacity-90">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                Online
+            <div className="flex-1 min-w-0">
+              <CardTitle className="text-sm font-semibold leading-tight truncate text-white">StockFlow AI</CardTitle>
+              <div className="flex items-center gap-2 text-xs opacity-90 mt-1">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse shadow-sm" />
+                <span className="truncate">Professional Assistant</span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1">
+
+          <div className="flex items-center gap-2 flex-shrink-0">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setIsMinimized(!isMinimized)}
-              className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/20"
+              className="h-8 w-8 text-white hover:bg-white/10 rounded-md"
+              title={isMinimized ? "Maximize" : "Minimize"}
             >
               {isMinimized ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
             </Button>
@@ -101,7 +146,8 @@ What would you like to know about the markets today?`,
               variant="ghost"
               size="icon"
               onClick={() => setIsOpen(false)}
-              className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/20"
+              className="h-8 w-8 text-white hover:bg-white/10 rounded-md"
+              title="Close"
             >
               <X className="w-4 h-4" />
             </Button>
@@ -109,10 +155,10 @@ What would you like to know about the markets today?`,
         </CardHeader>
 
         {!isMinimized && (
-          <CardContent className="flex flex-col h-[calc(600px-80px)] p-0">
+          <CardContent className="flex flex-col h-[calc(650px-64px)] p-0 bg-white">
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {messages.map((message) => (
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {messages.map((message, index) => (
                 <div
                   key={message.id}
                   className={cn(
@@ -121,29 +167,29 @@ What would you like to know about the markets today?`,
                   )}
                 >
                   {message.role === "assistant" && (
-                    <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                      <Bot className="w-4 h-4 text-primary" />
+                    <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <Bot className="w-4 h-4 text-white" />
                     </div>
                   )}
                   <div
                     className={cn(
-                      "max-w-[80%] rounded-lg px-3 py-2 text-sm",
+                      "max-w-[75%] rounded-lg px-4 py-3 text-sm shadow-sm",
                       message.role === "user"
-                        ? "bg-primary text-primary-foreground ml-auto"
-                        : "bg-muted text-foreground",
+                        ? "bg-black text-white ml-auto"
+                        : "bg-gray-50 text-gray-900 border border-gray-200",
                     )}
                   >
-                    <div className="whitespace-pre-wrap">{message.content}</div>
+                    <div className="whitespace-pre-wrap leading-relaxed">{message.content}</div>
                     {message.role === "assistant" && (
-                      <div className="text-xs opacity-70 mt-1">
-                        <Sparkles className="w-3 h-3 inline mr-1" />
-                        AI Assistant
+                      <div className="flex items-center gap-1 text-xs text-gray-500 mt-2 pt-2 border-t border-gray-200">
+                        <Sparkles className="w-3 h-3" />
+                        <span>AI Assistant</span>
                       </div>
                     )}
                   </div>
                   {message.role === "user" && (
-                    <div className="w-8 h-8 bg-secondary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                      <User className="w-4 h-4 text-secondary" />
+                    <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <User className="w-4 h-4 text-gray-600" />
                     </div>
                   )}
                 </div>
@@ -151,32 +197,33 @@ What would you like to know about the markets today?`,
 
               {isLoading && (
                 <div className="flex gap-3 justify-start animate-fade-in">
-                  <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                    <Bot className="w-4 h-4 text-primary" />
+                  <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <Bot className="w-4 h-4 text-white" />
                   </div>
-                  <div className="bg-muted rounded-lg px-3 py-2 text-sm">
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce" />
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-black rounded-full animate-bounce" />
                       <div
-                        className="w-2 h-2 bg-primary rounded-full animate-bounce"
+                        className="w-2 h-2 bg-black rounded-full animate-bounce"
                         style={{ animationDelay: "0.1s" }}
                       />
                       <div
-                        className="w-2 h-2 bg-primary rounded-full animate-bounce"
+                        className="w-2 h-2 bg-black rounded-full animate-bounce"
                         style={{ animationDelay: "0.2s" }}
                       />
+                      <span className="text-gray-600 ml-2">Analyzing...</span>
                     </div>
                   </div>
                 </div>
               )}
 
               {error && (
-                <div className="flex gap-3 justify-start">
-                  <div className="w-8 h-8 bg-destructive/10 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                    <Bot className="w-4 h-4 text-destructive" />
+                <div className="flex gap-3 justify-start animate-fade-in">
+                  <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <Bot className="w-4 h-4 text-white" />
                   </div>
-                  <div className="bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2 text-sm text-destructive">
-                    Sorry, I encountered an error. Please try again.
+                  <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 shadow-sm">
+                    I encountered an error. Please try again.
                   </div>
                 </div>
               )}
@@ -186,16 +233,16 @@ What would you like to know about the markets today?`,
 
             {/* Suggested Questions */}
             {messages.length <= 1 && (
-              <div className="px-4 pb-2">
-                <div className="text-xs text-muted-foreground mb-2">Try asking:</div>
-                <div className="flex flex-wrap gap-1">
+              <div className="px-6 pb-4 border-t border-gray-200 bg-gray-50/30">
+                <div className="text-xs font-medium text-gray-600 mb-3 pt-4">💡 Try asking:</div>
+                <div className="flex flex-wrap gap-2">
                   {suggestedQuestions.slice(0, 3).map((question, index) => (
                     <Badge
                       key={index}
                       variant="outline"
-                      className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors text-xs py-1"
+                      className="cursor-pointer hover:bg-black hover:text-white hover:border-black transition-all duration-200 text-xs py-2 px-3 rounded-md border-gray-300 bg-white text-gray-700 hover:scale-105"
                       onClick={() => {
-                        handleInputChange({ target: { value: question } } as any)
+                        setInput(question)
                         setTimeout(() => {
                           const form = inputRef.current?.closest("form")
                           if (form) {
@@ -212,22 +259,43 @@ What would you like to know about the markets today?`,
             )}
 
             {/* Input Area */}
-            <div className="border-t p-4">
-              <form onSubmit={handleSubmit} className="flex gap-2">
-                <input
-                  ref={inputRef}
-                  value={input}
-                  onChange={handleInputChange}
-                  placeholder="Ask about stocks, trading, or markets..."
-                  className="flex-1 px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring bg-background"
-                  disabled={isLoading}
-                />
-                <Button type="submit" size="sm" disabled={isLoading || !input.trim()} className="px-3">
-                  <Send className="w-4 h-4" />
+            <div className="border-t border-gray-200 p-4 bg-gray-50/50">
+              <form onSubmit={handleSubmit} className="flex gap-3">
+                <div className="flex-1 relative">
+                  <input
+                    ref={inputRef}
+                    value={input}
+                    onChange={handleInputChange}
+                    placeholder="Ask about stocks, market trends, or trading..."
+                    className="w-full px-4 py-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent bg-white text-gray-900 placeholder-gray-500 transition-all duration-200"
+                    disabled={isLoading}
+                  />
+                  {input && (
+                    <button
+                      type="button"
+                      onClick={() => setInput("")}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isLoading || !input.trim()}
+                  className="px-4 py-3 bg-black hover:bg-gray-800 text-white border-0 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50"
+                >
+                  {isLoading ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
                 </Button>
               </form>
-              <div className="text-xs text-muted-foreground mt-2 text-center">
-                AI can make mistakes. Always do your own research before investing.
+              <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mt-3">
+                <Sparkles className="w-3 h-3" />
+                <span>AI responses are for informational purposes. Always do your own research.</span>
               </div>
             </div>
           </CardContent>
