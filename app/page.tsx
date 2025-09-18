@@ -2,8 +2,8 @@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AIChatbot } from "@/components/ai-chatbot"
 import { TradingChart } from "@/components/trading-chart"
+import { DashboardLayout } from "@/components/dashboard-layout"
 import { useState, useEffect } from "react"
 import { getStockChartData } from "@/lib/chart-data"
 import { useRouter } from 'next/navigation'
@@ -71,6 +71,7 @@ export default function StockMarketDashboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null)
   const [timeframe, setTimeframe] = useState<'1D' | '1W' | '1M' | '3M' | '1Y'>('1D')
+  const [chartType, setChartType] = useState<'line' | 'area' | 'candle' | 'bar' | 'step' | 'baseline'>('area')
   const [trendingStocks, setTrendingStocks] = useState<Stock[]>([])
   const [watchlistStocks, setWatchlistStocks] = useState<Stock[]>([])
   const [chartData, setChartData] = useState<any[]>([])
@@ -345,33 +346,8 @@ export default function StockMarketDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="border-b border-gray-200 bg-white/95 backdrop-blur-sm sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">S</span>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">StockFlow</h1>
-                <p className="text-sm text-gray-600">Trading Dashboard</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Badge className="bg-green-100 text-green-800 border-green-200 font-medium">
-                <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-                Market Open
-              </Badge>
-              <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+    <DashboardLayout>
+      <div className="p-6">
         {/* Market Overview */}
         <section className="mb-12">
           <div className="flex items-center justify-between mb-8">
@@ -486,27 +462,50 @@ export default function StockMarketDashboard() {
                         <span className="text-sm text-gray-500">{mainStock.exchange}</span>
                       )}
                     </div>
-                    <Button
-                      onClick={() => handleAddToWishlist(mainStock)}
-                      className="bg-black hover:bg-gray-800 text-white"
-                      disabled={watchlistStocks.some(w => w.symbol === mainStock.symbol)}
-                    >
-                      {watchlistStocks.some(w => w.symbol === mainStock.symbol) ? (
-                        <>
-                          <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                    <div className="flex items-center space-x-3">
+                      {/* Chart Type Dropdown */}
+                      <div className="relative">
+                        <select
+                          value={chartType}
+                          onChange={(e) => setChartType(e.target.value as any)}
+                          className="appearance-none bg-white border border-gray-300 rounded-lg px-4 py-2 pr-8 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                        >
+                          <option value="line">◦ Line</option>
+                          <option value="area">▭ Area</option>
+                          <option value="candle">▐ Candles</option>
+                          <option value="bar">▬ Bars</option>
+                          <option value="step">▲ Step</option>
+                          <option value="baseline">▬ Baseline</option>
+                        </select>
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                          <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                           </svg>
-                          In Wishlist
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                          </svg>
-                          Add to Wishlist
-                        </>
-                      )}
-                    </Button>
+                        </div>
+                      </div>
+
+                      <Button
+                        onClick={() => handleAddToWishlist(mainStock)}
+                        className="bg-black hover:bg-gray-800 text-white"
+                        disabled={watchlistStocks.some(w => w.symbol === mainStock.symbol)}
+                      >
+                        {watchlistStocks.some(w => w.symbol === mainStock.symbol) ? (
+                          <>
+                            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                            </svg>
+                            In Wishlist
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                            </svg>
+                            Add to Wishlist
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                   {isLoadingChart ? (
                     <div className="h-96 flex items-center justify-center">
@@ -522,6 +521,7 @@ export default function StockMarketDashboard() {
                       currentPrice={mainStock.price}
                       change={mainStock.change}
                       changePercent={mainStock.changePercent}
+                      chartType={chartType}
                     />
                   )}
                 </>
@@ -656,10 +656,8 @@ export default function StockMarketDashboard() {
             Real-time market data • AI assistant ready • Professional trading tools
           </Badge>
         </div>
-      </main>
 
-      {/* AI Chatbot */}
-      <AIChatbot />
-    </div>
+      </div>
+    </DashboardLayout>
   )
 }
