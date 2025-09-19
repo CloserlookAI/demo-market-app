@@ -43,11 +43,39 @@ export async function POST(request: NextRequest) {
     const client = new RemoteAgentClient({ baseUrl, token })
 
     console.log('📡 Calling RemoteAgent API for stock analysis...')
-    // Create response with blocking=false to wait for completion
-    const response = await client.createResponse(agentName, {
-      input: { text: prompt },
-      background: false // Wait for completion
-    })
+
+    // Use background processing for better reliability
+    let response
+    try {
+      // Create response with background=true (non-blocking) - more reliable
+      console.log('🚀 Creating background response for stock analysis...')
+      const bgResponse = await client.createResponse(agentName, {
+        input: { text: prompt },
+        background: true // Use background processing for reliability
+      })
+
+      console.log('✅ Background response created, polling for completion...', bgResponse.id)
+
+      // Poll for completion with no timeout limit - wait until complete
+      response = await client.pollResponse(agentName, bgResponse.id, {
+        maxWaitTime: 30 * 60 * 1000, // 30 minutes max wait
+        pollInterval: 5000, // 5 seconds between polls
+        onStatusUpdate: (resp) => {
+          console.log('📊 Analysis status update:', resp.status)
+        }
+      })
+    } catch (error) {
+      console.error('❌ Background processing failed:', error)
+
+      // Provide more helpful error messages
+      if (error instanceof Error && error.message.includes('Agent is busy')) {
+        throw new Error('The AI agent is currently processing another request. Please wait a moment and try again.')
+      } else if (error instanceof Error && error.message.includes('timed out')) {
+        throw new Error('Stock analysis is taking longer than expected. The AI is working on complex analysis - please try again in a few minutes.')
+      } else {
+        throw error
+      }
+    }
 
     console.log('✅ Stock Analysis response received:', {
       id: response.id,
