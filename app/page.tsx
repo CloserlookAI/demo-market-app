@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { TradingChart } from "@/components/trading-chart"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { useState, useEffect } from "react"
-import { getStockChartData } from "@/lib/chart-data"
 import { useRouter } from 'next/navigation'
 
 // Professional icon components
@@ -70,12 +69,8 @@ export default function StockMarketDashboard() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null)
-  const [timeframe, setTimeframe] = useState<'1D' | '1W' | '1M' | '3M' | '1Y'>('1D')
-  const [chartType, setChartType] = useState<'line' | 'area' | 'candle' | 'bar' | 'step' | 'baseline'>('area')
   const [trendingStocks, setTrendingStocks] = useState<Stock[]>([])
   const [watchlistStocks, setWatchlistStocks] = useState<Stock[]>([])
-  const [chartData, setChartData] = useState<any[]>([])
-  const [isLoadingChart, setIsLoadingChart] = useState(false)
   const [marketIndices, setMarketIndices] = useState([
     { name: "S&P 500", symbol: "SPX", value: 0, change: 0, changePercent: 0 },
     { name: "NASDAQ", symbol: "IXIC", value: 0, change: 0, changePercent: 0 },
@@ -90,6 +85,14 @@ export default function StockMarketDashboard() {
 
   useEffect(() => {
     loadRealTimeData()
+
+    // Set up quiet background refresh every 60 seconds (longer interval, less intrusive)
+    const interval = setInterval(() => {
+      // Refresh data quietly in background without showing loading state
+      loadRealTimeData(false) // false = don't show loader
+    }, 60000) // 60 seconds - less frequent
+
+    return () => clearInterval(interval)
   }, [])
 
   // Close search dropdown when clicking outside
@@ -107,8 +110,11 @@ export default function StockMarketDashboard() {
     }
   }, [showSearchResults])
 
-  const loadRealTimeData = async () => {
-    setIsLoading(true)
+  const loadRealTimeData = async (showLoader = true) => {
+    // Only show loading state on initial load, not on background refreshes
+    if (showLoader) {
+      setIsLoading(true)
+    }
     try {
       // Popular stocks to display as trending
       const popularSymbols = ['AAPL', 'TSLA', 'GOOGL', 'MSFT', 'NVDA', 'AMZN']
@@ -195,60 +201,11 @@ export default function StockMarketDashboard() {
     } catch (error) {
       console.error('Error loading real-time data:', error)
     }
-    setIsLoading(false)
+    if (showLoader) {
+      setIsLoading(false)
+    }
   }
 
-  // Load chart data when stock or timeframe changes
-  useEffect(() => {
-    const mainStock = selectedStock || trendingStocks[0]
-    if (mainStock) {
-      loadChartData(mainStock.symbol, timeframe)
-    }
-  }, [selectedStock, timeframe, trendingStocks])
-
-  const loadChartData = async (symbol: string, period: string) => {
-    setIsLoadingChart(true)
-    try {
-      // Map timeframes to API parameters
-      const periodMap: { [key: string]: { period: string, interval: string } } = {
-        '1D': { period: '1d', interval: '5m' },
-        '1W': { period: '5d', interval: '1h' },
-        '1M': { period: '1mo', interval: '1d' },
-        '3M': { period: '3mo', interval: '1d' },
-        '1Y': { period: '1y', interval: '1wk' }
-      }
-
-      const params = periodMap[period] || periodMap['1D']
-      const response = await fetch(`/api/stocks/historical?symbol=${symbol}&period=${params.period}&interval=${params.interval}`)
-
-      if (response.ok) {
-        const data = await response.json()
-        if (data.data && data.data.length > 0) {
-          setChartData(data.data)
-        } else {
-          // Fallback to mock data if no real data available
-          const mainStock = selectedStock || trendingStocks[0]
-          if (mainStock) {
-            setChartData(getStockChartData(mainStock.symbol, mainStock.price, timeframe))
-          }
-        }
-      } else {
-        // Fallback to mock data
-        const mainStock = selectedStock || trendingStocks[0]
-        if (mainStock) {
-          setChartData(getStockChartData(mainStock.symbol, mainStock.price, timeframe))
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load chart data:', error)
-      // Fallback to mock data
-      const mainStock = selectedStock || trendingStocks[0]
-      if (mainStock) {
-        setChartData(getStockChartData(mainStock.symbol, mainStock.price, timeframe))
-      }
-    }
-    setIsLoadingChart(false)
-  }
 
   // Default to first trending stock for the main chart
   const mainStock = selectedStock || trendingStocks[0]
@@ -257,9 +214,6 @@ export default function StockMarketDashboard() {
     setSelectedStock(stock)
   }
 
-  const handleTimeframeChange = (newTimeframe: '1D' | '1W' | '1M' | '3M' | '1Y') => {
-    setTimeframe(newTimeframe)
-  }
 
   // Search functions
   const handleSearchChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -458,72 +412,36 @@ export default function StockMarketDashboard() {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-4">
                       <h3 className="text-xl font-bold text-gray-900">{mainStock.symbol} - {mainStock.name}</h3>
-                      {mainStock.exchange && (
-                        <span className="text-sm text-gray-500">{mainStock.exchange}</span>
-                      )}
                     </div>
-                    <div className="flex items-center space-x-3">
-                      {/* Chart Type Dropdown */}
-                      <div className="relative">
-                        <select
-                          value={chartType}
-                          onChange={(e) => setChartType(e.target.value as any)}
-                          className="appearance-none bg-white border border-gray-300 rounded-lg px-4 py-2 pr-8 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                        >
-                          <option value="line">◦ Line</option>
-                          <option value="area">▭ Area</option>
-                          <option value="candle">▐ Candles</option>
-                          <option value="bar">▬ Bars</option>
-                          <option value="step">▲ Step</option>
-                          <option value="baseline">▬ Baseline</option>
-                        </select>
-                        <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                          <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    <Button
+                      onClick={() => handleAddToWishlist(mainStock)}
+                      className="bg-black hover:bg-gray-800 text-white"
+                      disabled={watchlistStocks.some(w => w.symbol === mainStock.symbol)}
+                    >
+                      {watchlistStocks.some(w => w.symbol === mainStock.symbol) ? (
+                        <>
+                          <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                           </svg>
-                        </div>
-                      </div>
-
-                      <Button
-                        onClick={() => handleAddToWishlist(mainStock)}
-                        className="bg-black hover:bg-gray-800 text-white"
-                        disabled={watchlistStocks.some(w => w.symbol === mainStock.symbol)}
-                      >
-                        {watchlistStocks.some(w => w.symbol === mainStock.symbol) ? (
-                          <>
-                            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                            </svg>
-                            In Wishlist
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                            </svg>
-                            Add to Wishlist
-                          </>
-                        )}
-                      </Button>
-                    </div>
+                          In Wishlist
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                          </svg>
+                          Add to Wishlist
+                        </>
+                      )}
+                    </Button>
                   </div>
-                  {isLoadingChart ? (
-                    <div className="h-96 flex items-center justify-center">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 border-2 border-gray-300 border-t-black rounded-full animate-spin"></div>
-                        <span className="text-gray-600">Loading chart data...</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <TradingChart
-                      symbol={`${mainStock.symbol} - ${mainStock.name}`}
-                      data={chartData}
-                      currentPrice={mainStock.price}
-                      change={mainStock.change}
-                      changePercent={mainStock.changePercent}
-                      chartType={chartType}
-                    />
-                  )}
+                  <TradingChart
+                    symbol={`${mainStock.symbol} - ${mainStock.name}`}
+                    data={[]}
+                    currentPrice={mainStock.price}
+                    change={mainStock.change}
+                    changePercent={mainStock.changePercent}
+                  />
                 </>
               ) : (
                 <div className="h-96 flex items-center justify-center">

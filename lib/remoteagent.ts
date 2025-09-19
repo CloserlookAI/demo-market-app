@@ -28,7 +28,7 @@ interface CreateResponseRequest {
   background?: boolean
 }
 
-class RemoteAgentError extends Error {
+export class RemoteAgentError extends Error {
   constructor(message: string, public statusCode?: number) {
     super(message)
     this.name = 'RemoteAgentError'
@@ -70,7 +70,19 @@ export class RemoteAgentClient {
       throw new RemoteAgentError(errorMessage, response.status)
     }
 
-    return response.json()
+    // Check if response has content
+    const responseText = await response.text()
+    if (!responseText.trim()) {
+      throw new RemoteAgentError('Empty response received from server')
+    }
+
+    try {
+      return JSON.parse(responseText)
+    } catch (jsonError) {
+      console.error('JSON parsing error:', jsonError)
+      console.error('Response text:', responseText.substring(0, 500) + '...')
+      throw new RemoteAgentError(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : 'Invalid JSON'}`)
+    }
   }
 
   async listPublishedAgents(): Promise<any[]> {
@@ -81,22 +93,29 @@ export class RemoteAgentClient {
     return this.request<any>(`/api/v0/published/agents/${name}`)
   }
 
-  async createResponse(agentName: string, data: CreateResponseRequest): Promise<AgentResponse> {
+  async createResponse(agentName: string, data: CreateResponseRequest, signal?: AbortSignal): Promise<AgentResponse> {
     return this.request<AgentResponse>(`/api/v0/agents/${agentName}/responses`, {
       method: 'POST',
       body: JSON.stringify(data),
+      signal,
     })
   }
 
-  async getResponse(agentName: string, responseId: string): Promise<AgentResponse> {
-    const responses = await this.request<AgentResponse[]>(`/api/v0/agents/${agentName}/responses?limit=1000`)
-    const response = responses.find(r => r.id === responseId)
+  async getResponse(agentName: string, responseId: string): Promise<AgentResponse | null> {
+    try {
+      const responses = await this.request<AgentResponse[]>(`/api/v0/agents/${agentName}/responses?limit=1000`)
+      const response = responses.find(r => r.id === responseId)
 
-    if (!response) {
-      throw new RemoteAgentError(`Response ${responseId} not found for agent ${agentName}`)
+      if (!response) {
+        return null // Return null instead of throwing error - let polling handle it
+      }
+
+      return response
+    } catch (error) {
+      // If the request fails, return null to continue polling
+      console.log('🔄 Polling... response not ready yet')
+      return null
     }
-
-    return response
   }
 
   async pollResponse(
@@ -115,32 +134,39 @@ export class RemoteAgentClient {
     } = options
 
     const startTime = Date.now()
+    let lastStatus = ''
+
+    console.log(`🔄 Starting to poll response ${responseId} for agent ${agentName}`)
 
     while (Date.now() - startTime < maxWaitTime) {
-      try {
-        const response = await this.getResponse(agentName, responseId)
+      const response = await this.getResponse(agentName, responseId)
 
-        if (onStatusUpdate) {
-          onStatusUpdate(response)
+      if (response) {
+        // Update status only if it changed
+        if (response.status !== lastStatus) {
+          lastStatus = response.status
+          console.log(`📊 Response status: ${response.status}`)
+
+          if (onStatusUpdate) {
+            onStatusUpdate(response)
+          }
         }
 
+        // Check if response is complete
         if (response.status === 'completed' || response.status === 'failed') {
+          console.log(`✅ Response ${response.status}: ${responseId}`)
           return response
         }
-
-        // Wait before next poll
-        await new Promise(resolve => setTimeout(resolve, pollInterval))
-      } catch (error) {
-        if (error instanceof RemoteAgentError && error.statusCode === 404) {
-          // Response not found yet, continue polling
-          await new Promise(resolve => setTimeout(resolve, pollInterval))
-          continue
-        }
-        throw error
+      } else {
+        // Response not found yet or error occurred, just wait and continue
+        console.log(`🔄 Response not ready, waiting ${pollInterval}ms...`)
       }
+
+      // Wait before next poll
+      await new Promise(resolve => setTimeout(resolve, pollInterval))
     }
 
-    throw new RemoteAgentError('Response polling timed out')
+    throw new RemoteAgentError('Response polling timed out after waiting for completion')
   }
 }
 

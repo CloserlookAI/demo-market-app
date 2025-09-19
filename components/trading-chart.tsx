@@ -2,11 +2,10 @@
 
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  Area, AreaChart, BarChart, Bar, ReferenceLine
+  Area, AreaChart, ComposedChart, Bar, ReferenceLine, Brush
 } from 'recharts'
-import { useState, useEffect, useRef } from 'react'
-import { Button } from "@/components/ui/button"
-import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { TrendingUp, TrendingDown, Volume2, Activity, Maximize2, Settings } from 'lucide-react'
 
 interface TradingChartProps {
   symbol: string
@@ -24,92 +23,110 @@ interface TradingChartProps {
   chartType?: 'line' | 'area' | 'candle' | 'bar' | 'step' | 'baseline'
 }
 
-export function TradingChart({ symbol, data, currentPrice, change, changePercent, chartType: propChartType = 'area' }: TradingChartProps) {
+interface ChartSettings {
+  showVolume: boolean
+  showGrid: boolean
+  showMA: boolean
+  compactMode: boolean
+}
+
+export function TradingChart({ symbol, data, currentPrice, change, changePercent }: TradingChartProps) {
   const [timeframe, setTimeframe] = useState('1D')
-  const [chartData, setChartData] = useState(data)
+  const [chartData, setChartData] = useState(data || [])
   const [isLoading, setIsLoading] = useState(false)
-  const [zoomDomain, setZoomDomain] = useState<[number, number] | null>(null)
-  const [zoomLevel, setZoomLevel] = useState(1)
-  const [dynamicPrice, setDynamicPrice] = useState(currentPrice)
-  const [dynamicChange, setDynamicChange] = useState(change)
-  const [dynamicChangePercent, setDynamicChangePercent] = useState(changePercent)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [chartType, setChartType] = useState<'line' | 'area' | 'candlestick'>('line')
+  const [settings, setSettings] = useState<ChartSettings>({
+    showVolume: true,
+    showGrid: true,
+    showMA: false,
+    compactMode: false
+  })
+  const [hoveredPoint, setHoveredPoint] = useState<any>(null)
+  const [priceRange, setPriceRange] = useState({ min: 0, max: 0 })
 
-  const isPositive = dynamicChange >= 0
-  const chartColor = isPositive ? '#16a34a' : '#dc2626'
+  // Load initial chart data immediately on component mount
+  useEffect(() => {
+    if (symbol) {
+      fetchHistoricalData('1D')
+    }
+  }, [symbol])
 
-  const formatPrice = (value: number) => `$${value.toFixed(2)}`
+  // Update chart data when props change (fallback data)
+  useEffect(() => {
+    if (data && data.length > 0 && (!chartData || chartData.length === 0)) {
+      setChartData(data)
+      setError(null)
+    }
+  }, [data, chartData])
 
-  // Calculate dynamic price values based on timeframe and chart data
-  const calculateDynamicValues = (data: any[], timeframe: string) => {
-    if (!data || data.length === 0) {
-      return {
-        price: currentPrice,
-        change: change,
-        changePercent: changePercent
+  // Calculate price range and moving averages
+  const processedData = useMemo(() => {
+    if (!chartData || chartData.length === 0) return { data: [], min: 0, max: 0 }
+
+    const prices = chartData.map(d => d.price)
+    const min = Math.min(...prices)
+    const max = Math.max(...prices)
+    setPriceRange({ min, max })
+
+    // Calculate 20-period moving average if enabled
+    const dataWithMA = chartData.map((item, index) => {
+      let ma20 = null
+      if (settings.showMA && index >= 19) {
+        const sum = chartData.slice(index - 19, index + 1).reduce((acc, d) => acc + d.price, 0)
+        ma20 = sum / 20
       }
-    }
+      return { ...item, ma20 }
+    })
 
-    // Get the latest price from chart data
-    const latestPrice = data[data.length - 1]?.price || currentPrice
+    return { data: dataWithMA, min, max }
+  }, [chartData, settings.showMA])
 
-    // Get the starting price based on timeframe
-    let startPrice = data[0]?.price || currentPrice
-
-    // Apply variations based on timeframe to make realistic changes
-    let priceVariation = 1
-    let baseChange = change
-
-    switch(timeframe) {
-      case '1D':
-        priceVariation = 0.98 + Math.random() * 0.04 // ±2% variation
-        baseChange = change * (0.8 + Math.random() * 0.4) // ±20% of original change
-        break
-      case '1W':
-        priceVariation = 0.95 + Math.random() * 0.10 // ±5% variation
-        baseChange = change * (1.5 + Math.random() * 1.0) // 150-250% of original change
-        break
-      case '1M':
-        priceVariation = 0.90 + Math.random() * 0.20 // ±10% variation
-        baseChange = change * (2.0 + Math.random() * 2.0) // 200-400% of original change
-        break
-      case '3M':
-        priceVariation = 0.85 + Math.random() * 0.30 // ±15% variation
-        baseChange = change * (3.0 + Math.random() * 4.0) // 300-700% of original change
-        break
-      case '1Y':
-        priceVariation = 0.70 + Math.random() * 0.60 // ±30% variation
-        baseChange = change * (5.0 + Math.random() * 10.0) // 500-1500% of original change
-        break
-    }
-
-    const adjustedPrice = latestPrice * priceVariation
-    const priceChange = adjustedPrice - startPrice
-    const changePercent = ((priceChange / startPrice) * 100)
-
-    return {
-      price: adjustedPrice,
-      change: priceChange,
-      changePercent: changePercent
-    }
+  const isPositive = change >= 0
+  const formatPrice = (value: number) => {
+    if (value >= 1000000) return `$${(value / 1000000).toFixed(2)}M`
+    if (value >= 1000) return `$${(value / 1000).toFixed(2)}K`
+    return `$${value.toFixed(2)}`
+  }
+  const formatVolume = (value: number) => {
+    if (value >= 1000000000) return `${(value / 1000000000).toFixed(1)}B`
+    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`
+    if (value >= 1000) return `${(value / 1000).toFixed(1)}K`
+    return value.toString()
   }
 
-  // Map timeframe to API period format
+  const chartColor = isPositive ? '#16a34a' : '#dc2626' // Modern green/red
+  const gridColor = '#f1f5f9'
+  const textColor = '#64748b'
+
+  // Map timeframe to API period format - Yahoo Finance style
   const timeframeToPeriod = {
     '1D': '1d',
-    '1W': '5d',
+    '5D': '5d',
     '1M': '1mo',
     '3M': '3mo',
-    '1Y': '1y'
+    '6M': '6mo',
+    '1Y': '1y',
+    '5Y': '5y',
+    'MAX': '10y'
   }
 
   // Fetch historical data for different timeframes
   const fetchHistoricalData = async (selectedTimeframe: string) => {
     setIsLoading(true)
+    setError(null)
     try {
       const cleanSymbol = symbol.split(' - ')[0] // Extract just the symbol part
       const period = timeframeToPeriod[selectedTimeframe as keyof typeof timeframeToPeriod] || '1d'
-      const interval = selectedTimeframe === '1D' ? '5m' : selectedTimeframe === '1W' ? '30m' : '1d'
+
+      let interval = '2m' // More granular for 1D
+      if (selectedTimeframe === '5D') interval = '5m' // More granular for 5D
+      else if (selectedTimeframe === '1M') interval = '1d'
+      else if (selectedTimeframe === '3M') interval = '1d'
+      else if (selectedTimeframe === '6M') interval = '1d'
+      else if (selectedTimeframe === '1Y') interval = '1wk'
+      else if (selectedTimeframe === '5Y') interval = '1mo'
+      else if (selectedTimeframe === 'MAX') interval = '1mo'
 
       const response = await fetch(`/api/stocks/historical?symbol=${cleanSymbol}&period=${period}&interval=${interval}`)
 
@@ -117,40 +134,42 @@ export function TradingChart({ symbol, data, currentPrice, change, changePercent
         const result = await response.json()
         if (result.data && result.data.length > 0) {
           setChartData(result.data)
-          // Update dynamic values based on new data
-          const dynamicValues = calculateDynamicValues(result.data, selectedTimeframe)
-          setDynamicPrice(dynamicValues.price)
-          setDynamicChange(dynamicValues.change)
-          setDynamicChangePercent(dynamicValues.changePercent)
+          setError(null)
+        } else {
+          // If no data for the requested timeframe, try to use fallback data
+          if (data && data.length > 0) {
+            setChartData(data)
+            setError(null)
+          } else {
+            setError(`No data available for ${selectedTimeframe} timeframe`)
+            setChartData([])
+          }
+        }
+      } else {
+        const errorData = await response.json()
+        // If API fails, try to use fallback data
+        if (data && data.length > 0) {
+          setChartData(data)
+          setError(null)
+        } else {
+          setError(errorData.error || 'Failed to load chart data')
+          setChartData([])
         }
       }
     } catch (error) {
       console.error('Failed to fetch historical data:', error)
+      // If fetch fails, try to use fallback data
+      if (data && data.length > 0) {
+        setChartData(data)
+        setError(null)
+      } else {
+        setError('Failed to load chart data')
+        setChartData([])
+      }
     } finally {
       setIsLoading(false)
     }
   }
-
-  // Update data when props change
-  useEffect(() => {
-    setChartData(data)
-    if (data && data.length > 0) {
-      const dynamicValues = calculateDynamicValues(data, timeframe)
-      setDynamicPrice(dynamicValues.price)
-      setDynamicChange(dynamicValues.change)
-      setDynamicChangePercent(dynamicValues.changePercent)
-    }
-  }, [data, timeframe])
-
-  // Update dynamic values when timeframe changes with current data
-  useEffect(() => {
-    if (chartData && chartData.length > 0) {
-      const dynamicValues = calculateDynamicValues(chartData, timeframe)
-      setDynamicPrice(dynamicValues.price)
-      setDynamicChange(dynamicValues.change)
-      setDynamicChangePercent(dynamicValues.changePercent)
-    }
-  }, [timeframe])
 
   // Handle timeframe changes
   const handleTimeframeChange = async (newTimeframe: string) => {
@@ -158,391 +177,429 @@ export function TradingChart({ symbol, data, currentPrice, change, changePercent
     await fetchHistoricalData(newTimeframe)
   }
 
-  // Zoom functionality
-  const handleZoomIn = () => {
-    setZoomLevel(prev => Math.min(prev * 1.5, 10))
-  }
+  const timeframes = ['1D', '5D', '1M', '3M', '6M', '1Y', '5Y', 'MAX']
 
-  const handleZoomOut = () => {
-    setZoomLevel(prev => Math.max(prev / 1.5, 0.5))
-  }
-
-  const handleResetZoom = () => {
-    setZoomLevel(1)
-    setZoomDomain(null)
-  }
-
-  // Apply zoom to data
-  const getVisibleData = () => {
-    if (zoomLevel === 1 && !zoomDomain) return chartData
-
-    const totalPoints = chartData.length
-    const visiblePoints = Math.floor(totalPoints / zoomLevel)
-    const startIndex = zoomDomain ?
-      Math.floor(zoomDomain[0] * totalPoints) :
-      Math.max(0, Math.floor((totalPoints - visiblePoints) / 2))
-    const endIndex = Math.min(totalPoints, startIndex + visiblePoints)
-
-    return chartData.slice(startIndex, endIndex)
-  }
-
-  const visibleData = getVisibleData()
-
+  // Professional Yahoo Finance style tooltip
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload
+      setHoveredPoint(data)
       return (
-        <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-lg">
-          <p className="text-sm text-gray-600 mb-2">{data.time}</p>
-          {propChartType === 'candle' ? (
-            <div className="space-y-1 text-xs">
-              <p><span className="text-gray-500">Open:</span> {formatPrice(data.open || data.price)}</p>
-              <p><span className="text-gray-500">High:</span> {formatPrice(data.high || data.price)}</p>
-              <p><span className="text-gray-500">Low:</span> {formatPrice(data.low || data.price)}</p>
-              <p><span className="text-gray-500">Close:</span> {formatPrice(data.price)}</p>
+        <div className="bg-white/95 backdrop-blur-sm border border-slate-200 rounded-lg shadow-xl p-4 text-sm min-w-[200px]">
+          <div className="font-semibold text-slate-900 mb-2 border-b border-slate-100 pb-2">{label}</div>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600 font-medium">Price:</span>
+              <span className="font-bold text-slate-900">{formatPrice(payload[0].value)}</span>
             </div>
-          ) : (
-            <p className="text-sm font-semibold text-gray-900">
-              Price: {formatPrice(data.price)}
-            </p>
-          )}
-          <p className="text-xs text-gray-500 mt-1">
-            Volume: {data.volume?.toLocaleString() || 'N/A'}
-          </p>
+            {data.open && (
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600">Open:</span>
+                <span className="text-slate-700">{formatPrice(data.open)}</span>
+              </div>
+            )}
+            {data.high && (
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600">High:</span>
+                <span className="text-green-600 font-medium">{formatPrice(data.high)}</span>
+              </div>
+            )}
+            {data.low && (
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600">Low:</span>
+                <span className="text-red-600 font-medium">{formatPrice(data.low)}</span>
+              </div>
+            )}
+            {data.volume && settings.showVolume && (
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600">Volume:</span>
+                <span className="text-slate-700 font-medium">{formatVolume(data.volume)}</span>
+              </div>
+            )}
+            {data.ma20 && settings.showMA && (
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600">MA(20):</span>
+                <span className="text-blue-600 font-medium">{formatPrice(data.ma20)}</span>
+              </div>
+            )}
+          </div>
         </div>
       )
     }
     return null
   }
 
-  const timeframes = ['1D', '1W', '1M', '3M', '1Y']
+  // Price change indicator
+  const PriceDisplay = () => {
+    const displayPrice = hoveredPoint ? hoveredPoint.price : currentPrice
+    const displayChange = hoveredPoint
+      ? (hoveredPoint.price - (processedData.data[0]?.price || currentPrice))
+      : change
+    const displayChangePercent = hoveredPoint
+      ? (displayChange / (processedData.data[0]?.price || currentPrice)) * 100
+      : changePercent
+
+    const isDisplayPositive = displayChange >= 0
+
+    return (
+      <div className="flex items-center space-x-4">
+        <span className="text-4xl font-light text-slate-900">{formatPrice(displayPrice)}</span>
+        <div className={`flex items-center space-x-1 px-2 py-1 rounded-md ${
+          isDisplayPositive ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'
+        }`}>
+          {isDisplayPositive ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
+          <span className="font-semibold">
+            {isDisplayPositive ? '+' : ''}{displayChange.toFixed(2)}
+            ({isDisplayPositive ? '+' : ''}{displayChangePercent.toFixed(2)}%)
+          </span>
+        </div>
+        {hoveredPoint && (
+          <span className="text-sm text-slate-500">@ {hoveredPoint.time}</span>
+        )}
+      </div>
+    )
+  }
 
   return (
-    <div className="w-full">
-      {/* Chart Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900">{symbol}</h3>
-          <div className="flex items-center space-x-3 mt-1">
-            <span className="text-2xl font-bold text-gray-900">
-              {formatPrice(dynamicPrice)}
-            </span>
-            <div className={`flex items-center px-2 py-1 rounded text-sm font-medium ${
-              isPositive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-            }`}>
-              <span className="mr-1">{isPositive ? '+' : ''}{dynamicChange.toFixed(2)}</span>
-              <span>({isPositive ? '+' : ''}{dynamicChangePercent.toFixed(2)}%)</span>
+    <div className="w-full bg-white rounded-lg shadow-sm border border-slate-200">
+      {/* Professional Header */}
+      <div className="border-b border-slate-200 p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex flex-col space-y-2">
+            <div className="flex items-center space-x-3">
+              <h1 className="text-2xl font-bold text-slate-900">{symbol}</h1>
+              <div className="flex items-center space-x-2 text-sm text-slate-600">
+                <Activity size={16} />
+                <span>Real-time</span>
+              </div>
+            </div>
+            <PriceDisplay />
+          </div>
+
+          {/* Chart Controls */}
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-1 bg-slate-50 rounded-lg p-1">
+              <button
+                onClick={() => setChartType('line')}
+                className={`px-3 py-2 text-sm rounded-md transition-all ${
+                  chartType === 'line'
+                    ? 'bg-white text-slate-900 shadow-sm font-medium'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Line
+              </button>
+              <button
+                onClick={() => setChartType('area')}
+                className={`px-3 py-2 text-sm rounded-md transition-all ${
+                  chartType === 'area'
+                    ? 'bg-white text-slate-900 shadow-sm font-medium'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Area
+              </button>
+              <button
+                onClick={() => setChartType('candlestick')}
+                className={`px-3 py-2 text-sm rounded-md transition-all ${
+                  chartType === 'candlestick'
+                    ? 'bg-white text-slate-900 shadow-sm font-medium'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Candles
+              </button>
+            </div>
+
+            {/* Settings Toggle */}
+            <div className="relative group">
+              <button
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                title="Chart Settings"
+              >
+                <Settings size={18} className="text-slate-600" />
+              </button>
+              <div className="absolute right-0 top-full mt-2 bg-white border border-slate-200 rounded-lg shadow-lg p-3 z-10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 min-w-[160px]">
+                <div className="space-y-2 text-sm">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.showVolume}
+                      onChange={(e) => setSettings(prev => ({ ...prev, showVolume: e.target.checked }))}
+                      className="rounded"
+                    />
+                    <span>Show Volume</span>
+                  </label>
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.showGrid}
+                      onChange={(e) => setSettings(prev => ({ ...prev, showGrid: e.target.checked }))}
+                      className="rounded"
+                    />
+                    <span>Grid Lines</span>
+                  </label>
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.showMA}
+                      onChange={(e) => setSettings(prev => ({ ...prev, showMA: e.target.checked }))}
+                      className="rounded"
+                    />
+                    <span>Moving Avg</span>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center space-x-3">
-          {/* Zoom Controls */}
-          <div className="flex items-center space-x-1 border border-gray-300 rounded-lg p-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleZoomIn}
-              disabled={zoomLevel >= 10}
-              className="h-7 w-7 p-0"
-              title="Zoom In"
-            >
-              <ZoomIn className="w-3 h-3 text-black" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleZoomOut}
-              disabled={zoomLevel <= 0.5}
-              className="h-7 w-7 p-0"
-              title="Zoom Out"
-            >
-              <ZoomOut className="w-3 h-3 text-black" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleResetZoom}
-              disabled={zoomLevel === 1}
-              className="h-7 w-7 p-0"
-              title="Reset Zoom"
-            >
-              <RotateCcw className="w-3 h-3 text-black" />
-            </Button>
-          </div>
-
-          {/* Zoom Level Indicator */}
-          <div className="text-xs text-gray-500 px-2">
-            Zoom: {zoomLevel.toFixed(1)}x
-          </div>
-
-          {/* Timeframe Buttons */}
-          <div className="flex space-x-1">
+        {/* Professional Timeframe Selector */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-1 bg-slate-50 rounded-lg p-1">
             {timeframes.map((tf) => (
-              <Button
+              <button
                 key={tf}
-                variant={timeframe === tf ? 'default' : 'ghost'}
-                size="sm"
                 onClick={() => handleTimeframeChange(tf)}
                 disabled={isLoading}
-                className={`px-3 py-1 text-xs ${
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
                   timeframe === tf
-                    ? 'bg-black text-white hover:bg-gray-800'
-                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                } ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
               >
-                {isLoading && timeframe === tf ? '...' : tf}
-              </Button>
+                {tf}
+              </button>
             ))}
           </div>
+
+          <div className="flex items-center space-x-4 text-sm text-slate-600">
+            {processedData.data.length > 0 && (
+              <>
+                <span className="flex items-center space-x-1">
+                  <span>Range:</span>
+                  <span className="font-medium text-red-600">{formatPrice(priceRange.min)}</span>
+                  <span>-</span>
+                  <span className="font-medium text-green-600">{formatPrice(priceRange.max)}</span>
+                </span>
+                <span>{processedData.data.length} points</span>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Chart */}
-      <div className="h-80 w-full" ref={containerRef}>
-        {isLoading ? (
-          <div className="h-full flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            {propChartType === 'area' ? (
-              <AreaChart data={visibleData}>
+      {/* Professional Chart Container */}
+      <div className="relative">
+        <div className={`${settings.showVolume ? 'h-[500px]' : 'h-96'} w-full bg-white relative p-4`}>
+          {isLoading ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 border-2 border-slate-300 border-t-blue-600 rounded-full animate-spin"></div>
+                <span className="text-slate-600 font-medium">Loading market data...</span>
+              </div>
+            </div>
+          ) : !processedData.data || processedData.data.length === 0 ? (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-center text-slate-500">
+                <Activity size={48} className="mx-auto mb-4 text-slate-300" />
+                <p className="font-medium">No chart data available</p>
+                <p className="text-sm">Please try a different timeframe</p>
+              </div>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart
+                data={processedData.data}
+                margin={{ top: 10, right: 30, left: 20, bottom: settings.showVolume ? 100 : 20 }}
+                onMouseMove={(e) => e?.activePayload && setHoveredPoint(e.activePayload[0].payload)}
+                onMouseLeave={() => setHoveredPoint(null)}
+              >
                 <defs>
-                  <linearGradient id={`gradient-${symbol}`} x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id={`areaGradient-${symbol}`} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={chartColor} stopOpacity={0.3}/>
+                    <stop offset="50%" stopColor={chartColor} stopOpacity={0.1}/>
                     <stop offset="95%" stopColor={chartColor} stopOpacity={0}/>
                   </linearGradient>
+                  <linearGradient id="volumeGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#64748b" stopOpacity={0.6}/>
+                    <stop offset="95%" stopColor="#64748b" stopOpacity={0.1}/>
+                  </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+
+                {settings.showGrid && (
+                  <CartesianGrid
+                    strokeDasharray="2 2"
+                    stroke={gridColor}
+                    strokeWidth={0.5}
+                    opacity={0.5}
+                  />
+                )}
+
                 <XAxis
                   dataKey="time"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fontSize: 12, fill: '#6b7280' }}
+                  tick={{ fontSize: 11, fill: textColor, fontWeight: 500 }}
+                  interval={timeframe === '1D' ? Math.floor(processedData.data.length / 8) : 'preserveStartEnd'}
+                  minTickGap={40}
+                  height={30}
                 />
+
                 <YAxis
-                  domain={['dataMin - 5', 'dataMax + 5']}
+                  yAxisId="price"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fontSize: 12, fill: '#6b7280' }}
+                  tick={{ fontSize: 11, fill: textColor, fontWeight: 500 }}
                   tickFormatter={formatPrice}
+                  domain={[(dataMin: number) => dataMin * 0.998, (dataMax: number) => dataMax * 1.002]}
+                  width={80}
+                  orientation="right"
                 />
-                <Tooltip content={<CustomTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="price"
+
+                {settings.showVolume && (
+                  <YAxis
+                    yAxisId="volume"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 10, fill: textColor, fontWeight: 500 }}
+                    tickFormatter={formatVolume}
+                    orientation="left"
+                    width={60}
+                    domain={[0, (dataMax: number) => dataMax * 4]}
+                  />
+                )}
+
+                <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3' }} />
+
+                {/* Current price reference line */}
+                <ReferenceLine
+                  yAxisId="price"
+                  y={currentPrice}
                   stroke={chartColor}
-                  strokeWidth={2}
-                  fill={`url(#gradient-${symbol})`}
-                  dot={false}
-                  activeDot={{ r: 4, fill: chartColor, stroke: 'white', strokeWidth: 2 }}
-                />
-              </AreaChart>
-            ) : propChartType === 'line' ? (
-              <LineChart data={visibleData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis
-                  dataKey="time"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: '#6b7280' }}
-                />
-                <YAxis
-                  domain={['dataMin - 5', 'dataMax + 5']}
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: '#6b7280' }}
-                  tickFormatter={formatPrice}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Line
-                  type="monotone"
-                  dataKey="price"
-                  stroke={chartColor}
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4, fill: chartColor, stroke: 'white', strokeWidth: 2 }}
-                />
-              </LineChart>
-            ) : propChartType === 'step' ? (
-              <LineChart data={visibleData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis
-                  dataKey="time"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: '#6b7280' }}
-                />
-                <YAxis
-                  domain={['dataMin - 5', 'dataMax + 5']}
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: '#6b7280' }}
-                  tickFormatter={formatPrice}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Line
-                  type="step"
-                  dataKey="price"
-                  stroke={chartColor}
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4, fill: chartColor, stroke: 'white', strokeWidth: 2 }}
-                />
-              </LineChart>
-            ) : propChartType === 'bar' ? (
-              <BarChart data={visibleData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis
-                  dataKey="time"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: '#6b7280' }}
-                />
-                <YAxis
-                  domain={['dataMin - 5', 'dataMax + 5']}
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: '#6b7280' }}
-                  tickFormatter={formatPrice}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar
-                  dataKey="price"
-                  fill={chartColor}
+                  strokeDasharray="5 5"
+                  strokeWidth={1}
                   opacity={0.8}
                 />
-              </BarChart>
-            ) : propChartType === 'baseline' ? (
-              <AreaChart data={visibleData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis
-                  dataKey="time"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: '#6b7280' }}
-                />
-                <YAxis
-                  domain={['dataMin - 5', 'dataMax + 5']}
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: '#6b7280' }}
-                  tickFormatter={formatPrice}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <ReferenceLine y={dynamicPrice} stroke="#666" strokeDasharray="5 5" />
-                <Area
-                  type="monotone"
-                  dataKey="price"
-                  stroke={chartColor}
-                  strokeWidth={2}
-                  fill={chartColor}
-                  fillOpacity={0.1}
-                  dot={false}
-                  activeDot={{ r: 4, fill: chartColor, stroke: 'white', strokeWidth: 2 }}
-                />
-              </AreaChart>
-            ) : propChartType === 'candle' ? (
-              // Simulated candlestick using line chart with markers
-              <LineChart data={visibleData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis
-                  dataKey="time"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: '#6b7280' }}
-                />
-                <YAxis
-                  domain={['dataMin - 5', 'dataMax + 5']}
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: '#6b7280' }}
-                  tickFormatter={formatPrice}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Line
-                  type="monotone"
-                  dataKey="high"
-                  stroke={isPositive ? '#16a34a' : '#dc2626'}
-                  strokeWidth={1}
-                  strokeDasharray="2 2"
-                  dot={{ r: 2, fill: isPositive ? '#16a34a' : '#dc2626' }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="low"
-                  stroke={isPositive ? '#16a34a' : '#dc2626'}
-                  strokeWidth={1}
-                  strokeDasharray="2 2"
-                  dot={{ r: 2, fill: isPositive ? '#16a34a' : '#dc2626' }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="price"
-                  stroke={chartColor}
-                  strokeWidth={3}
-                  dot={false}
-                  activeDot={{ r: 6, fill: chartColor, stroke: 'white', strokeWidth: 2 }}
-                />
-              </LineChart>
-            ) : (
-              // Default to area chart
-              <AreaChart data={visibleData}>
-                <defs>
-                  <linearGradient id={`gradient-${symbol}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={chartColor} stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor={chartColor} stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis
-                  dataKey="time"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: '#6b7280' }}
-                />
-                <YAxis
-                  domain={['dataMin - 5', 'dataMax + 5']}
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: '#6b7280' }}
-                  tickFormatter={formatPrice}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="price"
-                  stroke={chartColor}
-                  strokeWidth={2}
-                  fill={`url(#gradient-${symbol})`}
-                  dot={false}
-                  activeDot={{ r: 4, fill: chartColor, stroke: 'white', strokeWidth: 2 }}
-                />
-              </AreaChart>
-            )}
-          </ResponsiveContainer>
-        )}
+
+                {/* Volume bars */}
+                {settings.showVolume && (
+                  <Bar
+                    yAxisId="volume"
+                    dataKey="volume"
+                    fill="url(#volumeGradient)"
+                    radius={[1, 1, 0, 0]}
+                    opacity={0.7}
+                  />
+                )}
+
+                {/* Moving average line */}
+                {settings.showMA && (
+                  <Line
+                    yAxisId="price"
+                    type="monotone"
+                    dataKey="ma20"
+                    stroke="#3b82f6"
+                    strokeWidth={1}
+                    dot={false}
+                    strokeDasharray="2 2"
+                    opacity={0.8}
+                  />
+                )}
+
+                {/* Main price visualization */}
+                {chartType === 'area' ? (
+                  <Area
+                    yAxisId="price"
+                    type="monotone"
+                    dataKey="price"
+                    stroke={chartColor}
+                    strokeWidth={2.5}
+                    fill={`url(#areaGradient-${symbol})`}
+                    dot={false}
+                    activeDot={{
+                      r: 5,
+                      fill: chartColor,
+                      strokeWidth: 2,
+                      stroke: '#fff',
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
+                    }}
+                  />
+                ) : chartType === 'candlestick' ? (
+                  // Simple candlestick representation using line with colored dots
+                  <Line
+                    yAxisId="price"
+                    type="monotone"
+                    dataKey="price"
+                    stroke={chartColor}
+                    strokeWidth={1.5}
+                    dot={{
+                      fill: chartColor,
+                      r: 4,
+                      strokeWidth: 0
+                    }}
+                    activeDot={{
+                      r: 5,
+                      fill: chartColor,
+                      strokeWidth: 2,
+                      stroke: '#fff'
+                    }}
+                  />
+                ) : (
+                  <Line
+                    yAxisId="price"
+                    type="monotone"
+                    dataKey="price"
+                    stroke={chartColor}
+                    strokeWidth={2.5}
+                    dot={false}
+                    activeDot={{
+                      r: 5,
+                      fill: chartColor,
+                      strokeWidth: 2,
+                      stroke: '#fff',
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
+                    }}
+                  />
+                )}
+
+                {/* Interactive brush for larger datasets */}
+                {processedData.data.length > 50 && timeframe !== '1D' && (
+                  <Brush
+                    dataKey="time"
+                    height={40}
+                    stroke={chartColor}
+                    fill="#f8fafc"
+                  />
+                )}
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
 
-      {/* Chart Info */}
-      <div className="mt-4 flex justify-between items-center text-sm text-gray-600">
-        <div className="flex items-center space-x-4">
-          <div>
-            Timeframe: <span className="font-medium">{timeframe}</span>
+      {/* Professional Footer */}
+      <div className="border-t border-slate-200 px-6 py-3">
+        <div className="flex justify-between items-center text-xs text-slate-500">
+          <div className="flex items-center space-x-4">
+            <span className="flex items-center space-x-1">
+              <Activity size={12} />
+              <span>Live Data</span>
+            </span>
+            <span>{processedData.data.length} data points</span>
+            <span>Timeframe: {timeframe}</span>
+            {settings.showVolume && <span>Volume included</span>}
+            {settings.showMA && <span>MA(20) overlay</span>}
           </div>
-          <div>
-            Chart: <span className="font-medium capitalize">{propChartType}</span>
-          </div>
-          <div>
-            Showing: <span className="font-medium">{visibleData.length}</span> of <span className="font-medium">{chartData.length}</span> points
+          <div className="flex items-center space-x-2">
+            <button
+              className="p-1 hover:bg-slate-100 rounded transition-colors"
+              title="Fullscreen"
+            >
+              <Maximize2 size={12} />
+            </button>
           </div>
         </div>
-        {zoomLevel !== 1 && (
-          <div className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-            Zoomed {zoomLevel.toFixed(1)}x
-          </div>
-        )}
       </div>
     </div>
   )

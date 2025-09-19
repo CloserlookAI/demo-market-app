@@ -46,12 +46,40 @@ export async function POST(req: NextRequest) {
     console.log('🚀 Creating RemoteAgent client...')
     const client = new RemoteAgentClient({ baseUrl, token })
 
-    console.log('📡 Calling RemoteAgent API with background=false...')
-    // Create response with blocking=false to wait for completion
-    const response = await client.createResponse(agentName, {
-      input: { text: message },
-      background: false // Wait for completion (blocks up to 15 minutes)
-    })
+    console.log('📡 Calling RemoteAgent API with background processing for reliability...')
+
+    // Always use background processing for better reliability
+    let response
+    try {
+      // Create response with background=true (non-blocking) - more reliable for complex queries
+      console.log('🚀 Creating background response...')
+      const bgResponse = await client.createResponse(agentName, {
+        input: { text: message },
+        background: true // Use background processing for reliability
+      })
+
+      console.log('✅ Background response created, polling for completion...', bgResponse.id)
+
+      // Poll for completion with no timeout limit - wait until complete
+      response = await client.pollResponse(agentName, bgResponse.id, {
+        maxWaitTime: 30 * 60 * 1000, // 30 minutes max wait (very generous)
+        pollInterval: 5000, // 5 seconds between polls (less aggressive)
+        onStatusUpdate: (resp) => {
+          console.log('📊 Status update:', resp.status)
+        }
+      })
+    } catch (error) {
+      console.error('❌ Background processing failed:', error)
+
+      // Provide more helpful error messages
+      if (error instanceof Error && error.message.includes('Agent is busy')) {
+        throw new Error('The AI agent is currently processing another request. Please wait a moment and try again.')
+      } else if (error instanceof Error && error.message.includes('timed out')) {
+        throw new Error('Your request is taking longer than expected. The AI is working on complex analysis - please try again in a few minutes.')
+      } else {
+        throw error
+      }
+    }
 
     console.log('✅ RemoteAgent response received:', {
       id: response.id,
@@ -78,13 +106,14 @@ export async function POST(req: NextRequest) {
 
     if (error instanceof RemoteAgentError) {
       return Response.json(
-        { error: error.message },
+        { success: false, error: error.message },
         { status: error.statusCode || 500 }
       )
     }
 
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error'
     return Response.json(
-      { error: 'Internal server error' },
+      { success: false, error: errorMessage },
       { status: 500 }
     )
   }
@@ -122,13 +151,14 @@ export async function GET(req: NextRequest) {
 
     if (error instanceof RemoteAgentError) {
       return Response.json(
-        { error: error.message },
+        { success: false, error: error.message },
         { status: error.statusCode || 500 }
       )
     }
 
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error'
     return Response.json(
-      { error: 'Internal server error' },
+      { success: false, error: errorMessage },
       { status: 500 }
     )
   }

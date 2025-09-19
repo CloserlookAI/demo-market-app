@@ -65,13 +65,39 @@ export function useRemoteAgent(options: UseRemoteAgentOptions = {}) {
       })
 
       console.log('📡 Response status:', response.status)
-      const data: RemoteAgentResponse = await response.json()
-      console.log('📡 Response data:', data)
 
+      // Check if response is ok before parsing JSON
       if (!response.ok) {
-        console.error('❌ API Error:', data.error)
-        throw new Error(data.error || `HTTP ${response.status}: Failed to send message`)
+        const errorText = await response.text()
+        console.error('❌ API Error Response:', errorText)
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+
+        try {
+          const errorData = JSON.parse(errorText)
+          if (errorData.error) {
+            errorMessage = errorData.error
+          }
+        } catch {
+          // If we can't parse error as JSON, use the raw text
+          errorMessage = errorText || errorMessage
+        }
+
+        throw new Error(errorMessage)
       }
+
+      let data: RemoteAgentResponse
+      try {
+        const responseText = await response.text()
+        if (!responseText.trim()) {
+          throw new Error('Empty response received from server')
+        }
+        data = JSON.parse(responseText)
+      } catch (parseError) {
+        console.error('❌ JSON parsing error:', parseError)
+        throw new Error(`Failed to parse server response: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`)
+      }
+
+      console.log('📡 Response data:', data)
 
       if (!data.success) {
         console.error('❌ Request failed:', data)
@@ -92,10 +118,27 @@ export function useRemoteAgent(options: UseRemoteAgentOptions = {}) {
       }
     } catch (err) {
       console.error('💥 RemoteAgent error:', err)
-      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
-      setError(errorMessage)
-      if (onError) {
-        onError(errorMessage)
+
+      // Only show errors that are actual failures, not polling-related issues
+      if (err instanceof Error) {
+        const errorMessage = err.message
+
+        // Don't show "Response not found" errors - these are normal during polling
+        if (!errorMessage.includes('not found') && !errorMessage.includes('404')) {
+          setError(errorMessage)
+          if (onError) {
+            onError(errorMessage)
+          }
+        } else {
+          // For polling-related errors, just log but don't show to user
+          console.log('🔄 Polling in progress, response not ready yet...')
+        }
+      } else {
+        const errorMessage = 'An unexpected error occurred'
+        setError(errorMessage)
+        if (onError) {
+          onError(errorMessage)
+        }
       }
       return null
     } finally {

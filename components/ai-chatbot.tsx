@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { MessageCircle, Send, X, Minimize2, Maximize2, Bot, User, Sparkles, Settings, AlertCircle } from "lucide-react"
+import { MessageCircle, Send, X, Minimize2, Maximize2, Bot, User, Sparkles, Settings, AlertCircle, Copy, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useRemoteAgent } from "@/hooks/useRemoteAgent"
 
@@ -22,32 +22,14 @@ export function AIChatbot() {
     {
       id: "welcome",
       role: "assistant" as const,
-      content: `Welcome to StockFlow AI Assistant!
-
-I'm your professional trading companion, ready to help you navigate the markets with confidence. Here's what I can assist you with:
-
-**Market Analysis & Insights**
-• Real-time stock analysis and technical indicators
-• Market trends and sentiment analysis
-
-**Trading & Investment Strategies**
-• Portfolio optimization and diversification advice
-• Risk management and position sizing
-
-**Financial Education**
-• Explaining complex financial concepts
-• Trading terminology and market mechanics
-
-**Data Interpretation**
-• Chart pattern recognition
-• Earnings reports and financial statements
-
-Ready to explore the markets together? Ask me anything about stocks, trading, or investments!`,
-    },
+      content: "Welcome to RemoteAgent Assistant"
+    }
   ])
+  const [isFirstQuery, setIsFirstQuery] = useState(true)
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<any>(null)
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
 
   const {
     sendMessage: sendRemoteAgentMessage,
@@ -56,12 +38,18 @@ Ready to explore the markets together? Ask me anything about stocks, trading, or
     error: remoteAgentError,
   } = useRemoteAgent({
     onStatusUpdate: (status) => {
-      // Update loading message with current status
+      // Update loading message with current status (only if loading message exists)
       setMessages(prev => {
         const newMessages = [...prev]
         const lastMessage = newMessages[newMessages.length - 1]
         if (lastMessage && lastMessage.role === "assistant" && lastMessage.id === "loading") {
-          lastMessage.content = `Processing your request... Status: ${status}`
+          const statusMessages = {
+            'pending': 'Request queued, please wait...',
+            'processing': 'RemoteAgent analyzing data...',
+            'completed': 'Analysis complete, preparing report...',
+            'failed': 'Analysis failed, please retry.'
+          }
+          lastMessage.content = statusMessages[status as keyof typeof statusMessages] || `Status: ${status}, please wait...`
         }
         return newMessages
       })
@@ -122,13 +110,16 @@ Ready to explore the markets together? Ask me anything about stocks, trading, or
       // Use RemoteAgent
       setIsLoading(true)
 
-      // Add loading message
-      const loadingMessage = {
-        id: "loading",
-        role: "assistant" as const,
-        content: "Connecting to RemoteAgent..."
+      // Add loading message only for first query
+      if (isFirstQuery) {
+        const loadingMessage = {
+          id: "loading",
+          role: "assistant" as const,
+          content: "RemoteAgent processing your request..."
+        }
+        setMessages(prev => [...prev, loadingMessage])
+        setIsFirstQuery(false)
       }
-      setMessages(prev => [...prev, loadingMessage])
 
       try {
         await sendRemoteAgentMessage(messageText, selectedAgent || defaultAgentName)
@@ -146,35 +137,31 @@ Ready to explore the markets together? Ask me anything about stocks, trading, or
         ? "RemoteAgent mode is disabled. Enable it in settings ⚙️"
         : "No agent configured. Check environment variables."
 
-      setTimeout(() => {
-        const assistantMessage = {
-          id: (Date.now() + 1).toString(),
-          role: "assistant" as const,
-          content: `**Thank you for your question!**
+      // Only show fallback if RemoteAgent is not configured properly
+      const assistantMessage = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant" as const,
+        content: `**Thank you for your question!**
 
 I understand you're looking for insights about: "${messageText}"
 
-**Current Status:** The AI assistant is configured and ready to help with market analysis once the API connection is established.
+**Current Status:** ${debugInfo}
 
-**In the meantime, here's what I recommend:**
+**To get full AI-powered analysis, please:**
+• Configure the RemoteAgent API in your environment variables
+• Enable RemoteAgent mode in settings ⚙️
 
-**For ${messageText.toLowerCase().includes('stock') ? 'Stock Analysis' : messageText.toLowerCase().includes('market') ? 'Market Research' : 'Investment Research'}:**
+**In the meantime, here are some general guidelines for ${messageText.toLowerCase().includes('stock') ? 'Stock Analysis' : messageText.toLowerCase().includes('market') ? 'Market Research' : 'Investment Research'}:**
 • Check the real-time data in your dashboard
 • Review recent market trends and patterns
 • Consider technical indicators and volume analysis
-
-**Quick Tips:**
 • Always do your own research before investing
 • Diversify your portfolio to manage risk
-• Keep up with market news and earnings reports
-
-**Technical Note:** ${debugInfo}
 
 Feel free to ask more questions - I'm here to help guide your trading journey!`
-        }
-        setMessages(prev => [...prev, assistantMessage])
-        setIsLoading(false)
-      }, 1000)
+      }
+      setMessages(prev => [...prev, assistantMessage])
+      setIsLoading(false)
     }
   }
 
@@ -210,6 +197,16 @@ Feel free to ask more questions - I'm here to help guide your trading journey!`
     }
   }, [isOpen, showSettings, selectedAgent])
 
+  const copyToClipboard = async (text: string, messageId: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedMessageId(messageId)
+      setTimeout(() => setCopiedMessageId(null), 2000)
+    } catch (err) {
+      console.error('Failed to copy text: ', err)
+    }
+  }
+
   const suggestedQuestions = [
     "Analyze the current market trend and volatility patterns",
     "What are the best risk management strategies for day trading?",
@@ -230,7 +227,7 @@ Feel free to ask more questions - I'm here to help guide your trading journey!`
           >
             <img
               src="https://avatars.githubusercontent.com/u/223376538?s=200&v=4"
-              alt="AI Assistant"
+              alt="RemoteAgent Assistant"
               className="w-full h-full rounded-full object-cover"
             />
           </Button>
@@ -238,7 +235,7 @@ Feel free to ask more questions - I'm here to help guide your trading journey!`
           {/* Tooltip */}
           <div className="absolute bottom-full right-0 mb-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
             <div className="bg-gray-900 text-white text-sm px-3 py-2 rounded-lg shadow-lg whitespace-nowrap">
-              Chat with AI Assistant
+              Chat with RemoteAgent Assistant
               <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
             </div>
           </div>
@@ -250,8 +247,8 @@ Feel free to ask more questions - I'm here to help guide your trading journey!`
   return (
     <div className="fixed bottom-16 right-4 z-50">
       <Card className={cn(
-        "w-[450px] shadow-2xl border border-gray-300/50 transition-all duration-300 bg-white backdrop-blur-sm",
-        isMinimized ? "h-16" : "h-[650px]",
+        "w-[454px] shadow-2xl border border-gray-300/50 transition-all duration-300 bg-white backdrop-blur-sm",
+        isMinimized ? "h-16" : "h-[666px]",
         "animate-fade-in"
       )}>
         <CardHeader className="flex flex-row items-center justify-between p-4 bg-gradient-to-r from-gray-900 to-black text-white rounded-t-lg border-b border-gray-200 shadow-md">
@@ -259,7 +256,7 @@ Feel free to ask more questions - I'm here to help guide your trading journey!`
             <div className="w-12 h-12 rounded-xl flex items-center justify-center border border-white/30 shadow-lg overflow-hidden bg-white">
               <img
                 src="https://avatars.githubusercontent.com/u/223376538?s=200&v=4"
-                alt="AI Assistant"
+                alt="RemoteAgent Assistant"
                 className="w-full h-full object-cover"
               />
             </div>
@@ -307,7 +304,7 @@ Feel free to ask more questions - I'm here to help guide your trading journey!`
         </CardHeader>
 
         {!isMinimized && (
-          <CardContent className="flex flex-col h-[calc(650px-64px)] p-0 bg-gradient-to-b from-gray-50/30 to-white">
+          <CardContent className="flex flex-col h-[calc(666px-64px)] p-0 bg-gradient-to-b from-gray-50/30 to-white">
             {/* Settings Panel */}
             {showSettings && (
               <div className="border-b border-gray-200 p-4 bg-gradient-to-r from-blue-50 to-indigo-50">
@@ -375,36 +372,41 @@ Feel free to ask more questions - I'm here to help guide your trading journey!`
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg border border-gray-200 overflow-hidden">
                       <img
                         src="https://avatars.githubusercontent.com/u/223376538?s=200&v=4"
-                        alt="AI Assistant"
+                        alt="RemoteAgent Assistant"
                         className="w-full h-full object-cover"
                       />
                     </div>
                   )}
                   <div
                     className={cn(
-                      "max-w-[75%] rounded-2xl px-4 py-3 text-sm shadow-md transition-all duration-200",
+                      "max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-md transition-all duration-200",
                       message.role === "user"
-                        ? "bg-gradient-to-r from-gray-900 to-black text-white ml-auto shadow-lg"
+                        ? "bg-gradient-to-r from-gray-900 to-black text-white ml-auto shadow-lg max-w-[75%]"
                         : "bg-white text-gray-900 border border-gray-200/80 shadow-sm hover:shadow-md",
                     )}
                   >
-                    <div className="whitespace-pre-wrap leading-relaxed text-sm">
+                    <div className="whitespace-pre-wrap leading-relaxed text-sm max-h-[400px] overflow-y-auto">
                       {message.role === "assistant" ? (
                         <div className="space-y-3">
-                          {message.content.split('\n\n').map((paragraph, i) => (
-                            <div key={i} className={cn(
-                              "leading-relaxed",
-                              paragraph.startsWith('•') ? "ml-3 pl-2 border-l-2 border-blue-200 text-gray-700" : "",
-                              paragraph.startsWith('**Technical Note:') ? "text-gray-700 text-xs bg-gray-50 px-3 py-2 rounded-lg border border-gray-200" : "",
-                              paragraph.includes('**') ? "font-semibold text-gray-800" : "text-gray-700"
-                            )}>
-                              <div dangerouslySetInnerHTML={{
-                                __html: paragraph
-                                  .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-gray-900">$1</strong>')
-                                  .replace(/\n/g, '<br />')
-                              }} />
-                            </div>
-                          ))}
+                          {message.content.split('\n\n').map((paragraph, i) => {
+                            // Don't truncate content - show everything
+                            return (
+                              <div key={i} className={cn(
+                                "leading-relaxed mb-3",
+                                paragraph.startsWith('•') ? "ml-3 pl-2 border-l-2 border-blue-200 text-gray-700" : "",
+                                paragraph.startsWith('-') ? "ml-3 pl-2 border-l-2 border-green-200 text-gray-700" : "",
+                                paragraph.startsWith('**Technical Note:') ? "text-gray-700 text-xs bg-gray-50 px-3 py-2 rounded-lg border border-gray-200" : "",
+                                paragraph.includes('**') && !paragraph.startsWith('**Technical Note:') ? "font-semibold text-gray-800" : "text-gray-700"
+                              )}>
+                                <div dangerouslySetInnerHTML={{
+                                  __html: paragraph
+                                    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-gray-900">$1</strong>')
+                                    .replace(/\* (.*)/g, '• $1')
+                                    .replace(/\n/g, '<br />')
+                                }} />
+                              </div>
+                            )
+                          })}
                         </div>
                       ) : (
                         message.content
@@ -414,10 +416,23 @@ Feel free to ask more questions - I'm here to help guide your trading journey!`
                       <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
                         <div className="flex items-center gap-1 text-xs text-gray-500">
                           <Sparkles className="w-3 h-3 text-gray-500" />
-                          <span>AI Assistant</span>
+                          <span>RemoteAgent Assistant</span>
                         </div>
-                        <div className="text-xs text-gray-400">
-                          {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => copyToClipboard(message.content, message.id)}
+                            className="text-xs text-gray-400 hover:text-gray-600 transition-colors p-1 rounded"
+                            title="Copy response"
+                          >
+                            {copiedMessageId === message.id ? (
+                              <Check className="w-3 h-3 text-green-600" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+                          <div className="text-xs text-gray-400">
+                            {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -435,24 +450,28 @@ Feel free to ask more questions - I'm here to help guide your trading journey!`
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg border border-gray-200 overflow-hidden">
                     <img
                       src="https://avatars.githubusercontent.com/u/223376538?s=200&v=4"
-                      alt="AI Assistant"
+                      alt="RemoteAgent Assistant"
                       className="w-full h-full object-cover animate-pulse"
                     />
                   </div>
                   <div className="bg-white border border-gray-200/80 rounded-2xl px-4 py-3 text-sm shadow-md">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-600 font-medium">
+                        {currentStatus ?
+                          (currentStatus === 'processing' ? 'RemoteAgent analyzing' : 'RemoteAgent thinking')
+                          : 'RemoteAgent thinking'}
+                      </span>
                       <div className="flex gap-1">
                         <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce" />
                         <div
                           className="w-2 h-2 bg-gray-700 rounded-full animate-bounce"
-                          style={{ animationDelay: "0.1s" }}
+                          style={{ animationDelay: "0.2s" }}
                         />
                         <div
                           className="w-2 h-2 bg-gray-800 rounded-full animate-bounce"
-                          style={{ animationDelay: "0.2s" }}
+                          style={{ animationDelay: "0.4s" }}
                         />
                       </div>
-                      <span className="text-gray-600 font-medium">AI is thinking...</span>
                     </div>
                   </div>
                 </div>
@@ -463,7 +482,7 @@ Feel free to ask more questions - I'm here to help guide your trading journey!`
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg border border-red-200 overflow-hidden">
                     <img
                       src="https://avatars.githubusercontent.com/u/223376538?s=200&v=4"
-                      alt="AI Assistant"
+                      alt="RemoteAgent Assistant"
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -476,37 +495,6 @@ Feel free to ask more questions - I'm here to help guide your trading journey!`
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Suggested Questions */}
-            {messages.length <= 1 && (
-              <div className="px-6 pb-4 border-t border-gray-200 bg-gradient-to-r from-blue-50/50 to-indigo-50/50">
-                <div className="text-sm font-semibold text-gray-700 mb-4 pt-4 flex items-center gap-2">
-                  <span className="text-gray-600">▶</span>
-                  Popular questions:
-                </div>
-                <div className="grid gap-2">
-                  {suggestedQuestions.slice(0, 3).map((question, index) => (
-                    <div
-                      key={index}
-                      className="cursor-pointer hover:bg-gradient-to-r hover:from-gray-900 hover:to-black hover:text-white transition-all duration-300 text-xs py-3 px-4 rounded-xl border border-gray-200 bg-white text-gray-700 hover:shadow-md hover:scale-[1.02] group"
-                      onClick={() => {
-                        setInput(question)
-                        setTimeout(() => {
-                          const form = inputRef.current?.closest("form")
-                          if (form) {
-                            form.requestSubmit()
-                          }
-                        }, 100)
-                      }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-gray-600 group-hover:text-white transition-colors">→</span>
-                        {question}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Input Area */}
             <div className="border-t border-gray-200 p-4 bg-gradient-to-r from-gray-50 to-white flex-shrink-0 mt-auto shadow-inner">

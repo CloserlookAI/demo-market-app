@@ -191,20 +191,20 @@ export default function ProfilePage() {
   const getRecommendationText = (key: string | undefined): string => {
     if (!key) return "N/A"
     const recommendations: { [key: string]: string } = {
-      'strongBuy': '🟢 Strong Buy',
-      'buy': '🔵 Buy',
-      'hold': '🟡 Hold',
-      'sell': '🟠 Sell',
-      'strongSell': '🔴 Strong Sell'
+      'strongBuy': 'Strong Buy',
+      'buy': 'Buy',
+      'hold': 'Hold',
+      'sell': 'Sell',
+      'strongSell': 'Strong Sell'
     }
     return recommendations[key] || key
   }
 
   const getTrendIndicator = (indicator: string | undefined): { text: string, color: string } => {
-    if (!indicator) return { text: "N/A", color: "text-gray-500" }
+    if (!indicator) return { text: "N/A", color: "text-black" }
     return indicator === 'bullish'
-      ? { text: "📈 Bullish", color: "text-green-600" }
-      : { text: "📉 Bearish", color: "text-red-600" }
+      ? { text: "Bullish", color: "text-black" }
+      : { text: "Bearish", color: "text-black" }
   }
 
   const handleSearchChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -800,9 +800,9 @@ export default function ProfilePage() {
 
             {/* Trading Information */}
             <Card>
-              <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 border-b">
-                <CardTitle className="text-lg text-teal-800 flex items-center">
-                  <span className="mr-2">📊</span>
+              <CardHeader className="bg-gray-50 border-b">
+                <CardTitle className="text-lg text-black flex items-center">
+                  <span className="mr-2 font-bold">•</span>
                   Trading Information
                 </CardTitle>
               </CardHeader>
@@ -816,11 +816,11 @@ export default function ProfilePage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Day High</span>
-                      <span className="font-semibold text-green-600">{formatCurrency(profile.dayHigh)}</span>
+                      <span className="font-semibold text-black">{formatCurrency(profile.dayHigh)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Day Low</span>
-                      <span className="font-semibold text-red-600">{formatCurrency(profile.dayLow)}</span>
+                      <span className="font-semibold text-black">{formatCurrency(profile.dayLow)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Volume</span>
@@ -836,16 +836,16 @@ export default function ProfilePage() {
                     <h4 className="font-semibold text-gray-700">52-Week Range</h4>
                     <div className="flex justify-between">
                       <span className="text-gray-600">52-Week High</span>
-                      <span className="font-semibold text-green-600">{formatCurrency(profile.high52Week)}</span>
+                      <span className="font-semibold text-black">{formatCurrency(profile.high52Week)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">52-Week Low</span>
-                      <span className="font-semibold text-red-600">{formatCurrency(profile.low52Week)}</span>
+                      <span className="font-semibold text-black">{formatCurrency(profile.low52Week)}</span>
                     </div>
                     {profile.high52Week && profile.price && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">% from 52W High</span>
-                        <span className={`font-semibold ${((profile.price - profile.high52Week) / profile.high52Week) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        <span className="font-semibold text-black">
                           {(((profile.price - profile.high52Week) / profile.high52Week) * 100).toFixed(2)}%
                         </span>
                       </div>
@@ -853,7 +853,7 @@ export default function ProfilePage() {
                     {profile.low52Week && profile.price && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">% from 52W Low</span>
-                        <span className={`font-semibold ${((profile.price - profile.low52Week) / profile.low52Week) > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className="font-semibold text-black">
                           {(((profile.price - profile.low52Week) / profile.low52Week) * 100).toFixed(2)}%
                         </span>
                       </div>
@@ -872,7 +872,7 @@ export default function ProfilePage() {
                       {profile.postMarketChange && (
                         <div className="flex justify-between">
                           <span className="text-gray-600">Post-Market Change</span>
-                          <span className={`font-semibold ${profile.postMarketChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <span className="font-semibold text-black">
                             {profile.postMarketChange > 0 ? '+' : ''}{formatCurrency(profile.postMarketChange)}
                           </span>
                         </div>
@@ -880,7 +880,7 @@ export default function ProfilePage() {
                       {profile.postMarketChangePercent && (
                         <div className="flex justify-between">
                           <span className="text-gray-600">Post-Market %</span>
-                          <span className={`font-semibold ${profile.postMarketChangePercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <span className="font-semibold text-black">
                             {profile.postMarketChangePercent > 0 ? '+' : ''}{profile.postMarketChangePercent.toFixed(2)}%
                           </span>
                         </div>
@@ -894,9 +894,9 @@ export default function ProfilePage() {
             {/* Business Summary */}
             {profile.businessSummary && (
               <Card>
-                <CardHeader className="bg-gradient-to-r from-gray-50 to-slate-50 border-b">
-                  <CardTitle className="text-lg text-gray-800 flex items-center">
-                    <span className="mr-2">🏢</span>
+                <CardHeader className="bg-gray-50 border-b">
+                  <CardTitle className="text-lg text-black flex items-center">
+                    <span className="mr-2 font-bold">•</span>
                     Business Overview
                   </CardTitle>
                 </CardHeader>
