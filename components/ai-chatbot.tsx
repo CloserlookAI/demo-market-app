@@ -110,16 +110,14 @@ export function AIChatbot() {
       // Use RemoteAgent
       setIsLoading(true)
 
-      // Add loading message only for first query
-      if (isFirstQuery) {
-        const loadingMessage = {
-          id: "loading",
-          role: "assistant" as const,
-          content: "RemoteAgent processing your request..."
-        }
-        setMessages(prev => [...prev, loadingMessage])
-        setIsFirstQuery(false)
+      // Always add loading message for RemoteAgent requests
+      const loadingMessage = {
+        id: "loading",
+        role: "assistant" as const,
+        content: "RemoteAgent processing your request..."
       }
+      setMessages(prev => [...prev, loadingMessage])
+      setIsFirstQuery(false)
 
       try {
         await sendRemoteAgentMessage(messageText, selectedAgent || defaultAgentName)
