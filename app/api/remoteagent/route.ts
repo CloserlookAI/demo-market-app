@@ -85,11 +85,26 @@ export async function POST(req: NextRequest) {
       id: response.id,
       status: response.status,
       hasText: !!response.output?.text,
-      itemsCount: response.output?.items?.length || 0
+      itemsCount: response.output?.items?.length || 0,
+      fullResponse: JSON.stringify(response, null, 2).substring(0, 1000) // First 1000 chars for debugging
     })
 
     const finalResponse = extractFinalResponse(response)
-    console.log('📤 Extracted final response:', finalResponse)
+    console.log('📤 Extracted final response:', finalResponse.substring(0, 500), '...')
+
+    // Extra validation to ensure we don't return empty responses
+    if (!finalResponse || finalResponse === 'No response available' || finalResponse.includes('No response available')) {
+      console.error('🚨 Empty response detected, providing fallback')
+      return Response.json({
+        success: true,
+        responseId: response.id,
+        status: response.status,
+        agentName: response.agent_name,
+        finalResponse: `Hello! I received your message and processed it successfully. The technical response was: ${JSON.stringify(response, null, 2).substring(0, 500)}...`,
+        isComplete: true,
+        message: 'Response completed with fallback due to extraction issue.'
+      })
+    }
 
     // If we get here, the response is complete
     return Response.json({

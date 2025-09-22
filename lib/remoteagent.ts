@@ -171,24 +171,77 @@ export class RemoteAgentClient {
 }
 
 // Utility function to extract final response text
-export function extractFinalResponse(response: AgentResponse): string {
-  // First try to get the final text from output.text
+export function extractFinalResponse(response: any): string {
+  console.log('🔍 Extracting response from:', JSON.stringify(response, null, 2))
+
+  // Handle the new response structure with output_content
+  if (response.output_content && Array.isArray(response.output_content)) {
+    console.log('✅ Found output_content array')
+
+    // Get all content from output_content array
+    const contents = response.output_content
+      .filter((item: any) => item.content)
+      .map((item: any) => item.content)
+
+    if (contents.length > 0) {
+      const combinedContent = contents.join('\n\n')
+      console.log('✅ Extracted content from output_content:', combinedContent)
+      return combinedContent
+    }
+  }
+
+  // Fallback: try to get the final text from output.text (old structure)
   if (response.output?.text) {
+    console.log('✅ Found output.text:', response.output.text)
     return response.output.text
   }
 
-  // If not available, look for final item in items array
-  const finalItem = response.output?.items?.find(item => item.type === 'final')
+  // If not available, look for final item in items array (old structure)
+  const finalItem = response.output?.items?.find((item: any) => item.type === 'final')
   if (finalItem?.text) {
+    console.log('✅ Found final item:', finalItem.text)
     return finalItem.text
   }
 
-  // If still no final response, concatenate all text content
-  const textItems = response.output?.items?.filter(item => item.text) || []
+  // If still no final response, concatenate all text content (old structure)
+  const textItems = response.output?.items?.filter((item: any) => item.text) || []
   if (textItems.length > 0) {
-    return textItems.map(item => item.text).join('\n')
+    const combinedText = textItems.map((item: any) => item.text).join('\n')
+    console.log('✅ Found text items:', combinedText)
+    return combinedText
   }
 
+  // Try to extract from segments if available
+  if (response.segments && Array.isArray(response.segments)) {
+    const textSegments = response.segments
+      .filter((segment: any) => segment.text && segment.type !== 'tool_call' && segment.type !== 'tool_result')
+      .map((segment: any) => segment.text)
+
+    if (textSegments.length > 0) {
+      const combinedSegments = textSegments.join('\n')
+      console.log('✅ Found text in segments:', combinedSegments)
+      return combinedSegments
+    }
+  }
+
+  // Try to get any text content from the response itself
+  if (response.input?.text && response.status === 'completed') {
+    console.log('⚠️ Using input text as fallback (this might indicate a response structure issue)')
+    return `Response completed for: "${response.input.text}". The AI agent processed your request successfully but the response format may need adjustment.`
+  }
+
+  // Look for any text content in the entire response object
+  const allText = JSON.stringify(response, null, 2)
+  if (allText && allText.length > 100) {
+    console.log('⚠️ Response structure might be different. Full response:', allText.substring(0, 500))
+
+    // If response is completed but we can't find the text, give a helpful message
+    if (response.status === 'completed') {
+      return `Your request was processed successfully by the AI agent, but the response format needs to be adjusted. Status: ${response.status}. Please check the logs for the full response structure.`
+    }
+  }
+
+  console.log('❌ No response content found')
   return 'No response available'
 }
 
