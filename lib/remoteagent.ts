@@ -101,17 +101,13 @@ export class RemoteAgentClient {
 
   async getResponse(agentName: string, responseId: string): Promise<AgentResponse | null> {
     try {
-      const responses = await this.request<AgentResponse[]>(`/api/v0/agents/${agentName}/responses`)
-      const response = responses.find(r => r.id === responseId)
-
-      if (!response) {
-        return null // Return null instead of throwing error - let polling handle it
-      }
-
+      // Use the specific response endpoint instead of fetching all responses
+      const response = await this.request<AgentResponse>(`/api/v0/agents/${agentName}/responses/${responseId}`)
+      console.log(`🔄 Polling response ${responseId}: status=${response.status}`)
       return response
     } catch (error) {
       // If the request fails, return null to continue polling
-      console.log('🔄 Polling... response not ready yet')
+      console.log(`🔄 Polling... response ${responseId} not ready yet (${error instanceof Error ? error.message : 'Unknown error'})`)
       return null
     }
   }
@@ -151,7 +147,7 @@ export class RemoteAgentClient {
         }
 
         // Check if response is complete
-        if (response.status === 'completed' || response.status === 'failed') {
+        if (response.status === 'completed' || response.status === 'failed' || response.status === 'cancelled') {
           console.log(`✅ Response ${response.status}: ${responseId}`)
           return response
         }

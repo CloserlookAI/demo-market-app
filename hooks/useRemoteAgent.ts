@@ -29,6 +29,7 @@ export function useRemoteAgent(options: UseRemoteAgentOptions = {}) {
   const [isLoading, setIsLoading] = useState(false)
   const [currentStatus, setCurrentStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [lastCompletedResponse, setLastCompletedResponse] = useState<string | null>(null)
 
   const abortControllerRef = useRef<AbortController>()
 
@@ -46,6 +47,7 @@ export function useRemoteAgent(options: UseRemoteAgentOptions = {}) {
     setIsLoading(true)
     setError(null)
     setCurrentStatus('processing')
+    setLastCompletedResponse(null) // Reset to allow new responses
 
     // Validate inputs before sending
     console.log('🔍 Input validation:', {
@@ -135,13 +137,31 @@ export function useRemoteAgent(options: UseRemoteAgentOptions = {}) {
       }
 
       // Response is already complete since we used background=false
-      if (data.isComplete && data.finalResponse) {
+      if (data.success && data.finalResponse) {
         console.log('✅ Got final response:', data.finalResponse)
         setCurrentStatus('completed')
-        if (onComplete) {
+
+        // Prevent duplicate onComplete calls
+        if (onComplete && data.finalResponse !== lastCompletedResponse) {
+          console.log('🎯 Calling onComplete callback with response:', data.finalResponse)
+          setLastCompletedResponse(data.finalResponse)
           onComplete(data.finalResponse)
+        } else if (data.finalResponse === lastCompletedResponse) {
+          console.log('🚫 Duplicate response detected in hook, skipping onComplete call')
         }
         return data.finalResponse
+      } else if (data.success && data.isComplete) {
+        console.log('✅ Response marked as complete but no finalResponse:', data)
+        const fallbackResponse = "Response completed successfully but no content was returned."
+        setCurrentStatus('completed')
+
+        // Prevent duplicate onComplete calls
+        if (onComplete && fallbackResponse !== lastCompletedResponse) {
+          console.log('🎯 Calling onComplete callback with fallback response')
+          setLastCompletedResponse(fallbackResponse)
+          onComplete(fallbackResponse)
+        }
+        return fallbackResponse
       } else {
         console.error('❌ No final response:', data)
         throw new Error('Response completed but no final response received')

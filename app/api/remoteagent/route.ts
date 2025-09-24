@@ -98,9 +98,9 @@ export async function POST(req: NextRequest) {
       // Poll for completion with no timeout limit - wait until complete
       response = await client.pollResponse(agentName, bgResponse.id, {
         maxWaitTime: 30 * 60 * 1000, // 30 minutes max wait (very generous)
-        pollInterval: 5000, // 5 seconds between polls (less aggressive)
+        pollInterval: 3000, // 3 seconds between polls (slightly faster)
         onStatusUpdate: (resp) => {
-          console.log('📊 Status update:', resp.status)
+          console.log('📊 Status update:', resp.status, 'for response ID:', resp.id)
         }
       })
     } catch (error) {

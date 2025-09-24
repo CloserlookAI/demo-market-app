@@ -56,25 +56,54 @@ export function AIChatbot() {
     },
     onComplete: (response) => {
       // Replace loading message with final response
+      console.log('✅ RemoteAgent response completed, replacing loading message:', response)
+
       setMessages(prev => {
         const newMessages = [...prev]
         const lastMessage = newMessages[newMessages.length - 1]
+
+        // Check if we already have this exact response content (prevent duplicates)
+        const hasRecentDuplicate = newMessages
+          .slice(-3) // Check last 3 messages
+          .some(msg => msg.role === "assistant" && msg.content === response)
+
+        if (hasRecentDuplicate) {
+          console.log('🚫 Duplicate response detected, skipping...')
+          return prev // Return unchanged messages
+        }
+
         if (lastMessage && lastMessage.id === "loading") {
+          // Replace loading message with the response
           lastMessage.content = response
           lastMessage.id = Date.now().toString()
+        } else {
+          // Fallback: add as new message if loading message not found
+          newMessages.push({
+            id: Date.now().toString(),
+            role: "assistant" as const,
+            content: response
+          })
         }
         return newMessages
       })
     },
     onError: (errorMessage) => {
       setError(errorMessage)
-      // Replace loading message with error
+      // Replace loading message with error message
+      console.log('❌ RemoteAgent error, replacing loading message with error:', errorMessage)
       setMessages(prev => {
         const newMessages = [...prev]
         const lastMessage = newMessages[newMessages.length - 1]
         if (lastMessage && lastMessage.id === "loading") {
           lastMessage.content = `Sorry, I encountered an error: ${errorMessage}`
           lastMessage.id = Date.now().toString()
+        } else {
+          // Fallback: add as new message if loading message not found
+          newMessages.push({
+            id: Date.now().toString(),
+            role: "assistant" as const,
+            content: `Sorry, I encountered an error: ${errorMessage}`
+          })
         }
         return newMessages
       })
@@ -129,8 +158,13 @@ export function AIChatbot() {
       // Use RemoteAgent
       setIsLoading(true)
 
-      // Skip adding loading message for RemoteAgent requests
-      // Only show the analyzing status in the typing indicator
+      // Add loading message for RemoteAgent requests
+      const loadingMessage = {
+        id: "loading",
+        role: "assistant" as const,
+        content: "RemoteAgent is processing your request..."
+      }
+      setMessages(prev => [...prev, loadingMessage])
       setIsFirstQuery(false)
 
       try {
@@ -146,14 +180,7 @@ export function AIChatbot() {
 
       } catch (error) {
         console.error('❌ RemoteAgent error:', error)
-
-        // Add an error message to the chat
-        const errorMessage = {
-          id: Date.now().toString(),
-          role: "assistant" as const,
-          content: `I apologize, but I encountered an error while processing your message: "${messageText}"\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again or check the RemoteAgent configuration.`
-        }
-        setMessages(prev => [...prev, errorMessage])
+        // Error handling is now done by the onError callback above
       } finally {
         setIsLoading(false)
       }
