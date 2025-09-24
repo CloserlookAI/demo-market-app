@@ -5,11 +5,46 @@ export async function POST(req: NextRequest) {
   try {
     console.log('🔧 RemoteAgent API called')
 
-    const { message, agentName } = await req.json()
-    console.log('📝 Request payload:', { message, agentName })
+    // Get raw request body first for debugging
+    const rawBody = await req.text()
+    console.log('📥 Raw request body:', rawBody)
+    console.log('📥 Raw body length:', rawBody.length)
+    console.log('📥 Raw body type:', typeof rawBody)
+
+    // Parse JSON
+    let parsedBody
+    try {
+      parsedBody = JSON.parse(rawBody)
+      console.log('📝 Parsed request body:', parsedBody)
+    } catch (parseError) {
+      console.error('❌ JSON parse error:', parseError)
+      console.error('❌ Raw body that failed to parse:', rawBody)
+      return Response.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      )
+    }
+
+    const { message, agentName } = parsedBody
+
+    console.log('📝 Extracted values:', {
+      message: message,
+      messageType: typeof message,
+      messageLength: message?.length || 0,
+      messageContent: message,
+      agentName: agentName,
+      agentNameType: typeof agentName,
+      agentNameLength: agentName?.length || 0,
+      agentNameContent: agentName
+    })
 
     if (!message || typeof message !== 'string') {
-      console.error('❌ Invalid message:', message)
+      console.error('❌ Invalid message:', {
+        received: message,
+        type: typeof message,
+        isString: typeof message === 'string',
+        isEmpty: !message
+      })
       return Response.json(
         { error: 'Message is required and must be a string' },
         { status: 400 }
@@ -54,7 +89,7 @@ export async function POST(req: NextRequest) {
       // Create response with background=true (non-blocking) - more reliable for complex queries
       console.log('🚀 Creating background response...')
       const bgResponse = await client.createResponse(agentName, {
-        input: { text: message },
+        input: { content: [{ type: 'text', content: message }] },
         background: true // Use background processing for reliability
       })
 

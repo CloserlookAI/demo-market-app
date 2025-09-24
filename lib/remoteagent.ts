@@ -7,24 +7,22 @@ interface AgentResponse {
   id: string
   agent_name: string
   status: 'pending' | 'processing' | 'completed' | 'failed'
-  input: { text: string }
-  output: {
-    text: string
-    items: Array<{
-      type: 'commentary' | 'tool_call' | 'tool_result' | 'final'
-      channel?: string
-      text?: string
-      tool?: string
-      args?: any
-      output?: any
-    }>
-  }
+  input_content: Array<{ type: string; content: string }>
+  output_content: Array<{ type: string; content: string }>
+  segments: Array<{
+    type: 'commentary' | 'tool_call' | 'tool_result' | 'final'
+    channel?: string
+    text?: string
+    tool?: string
+    args?: any
+    output?: any
+  }>
   created_at: string
   updated_at: string
 }
 
 interface CreateResponseRequest {
-  input: { text: string }
+  input: { content: Array<{ type: string; content: string }> }
   background?: boolean
 }
 
@@ -103,7 +101,7 @@ export class RemoteAgentClient {
 
   async getResponse(agentName: string, responseId: string): Promise<AgentResponse | null> {
     try {
-      const responses = await this.request<AgentResponse[]>(`/api/v0/agents/${agentName}/responses?limit=1000`)
+      const responses = await this.request<AgentResponse[]>(`/api/v0/agents/${agentName}/responses`)
       const response = responses.find(r => r.id === responseId)
 
       if (!response) {
@@ -225,9 +223,10 @@ export function extractFinalResponse(response: any): string {
   }
 
   // Try to get any text content from the response itself
-  if (response.input?.text && response.status === 'completed') {
+  if (response.input_content && response.input_content.length > 0 && response.status === 'completed') {
+    const inputText = response.input_content[0].content
     console.log('⚠️ Using input text as fallback (this might indicate a response structure issue)')
-    return `Response completed for: "${response.input.text}". The AI agent processed your request successfully but the response format may need adjustment.`
+    return `Response completed for: "${inputText}". The AI agent processed your request successfully but the response format may need adjustment.`
   }
 
   // Look for any text content in the entire response object

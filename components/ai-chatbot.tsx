@@ -13,7 +13,7 @@ export function AIChatbot() {
   const [isMinimized, setIsMinimized] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [selectedAgent, setSelectedAgent] = useState<string>("")
-  const [useRemoteAgentMode, setUseRemoteAgentMode] = useState(false)
+  const [useRemoteAgentMode, setUseRemoteAgentMode] = useState(true) // Enable by default
   const [defaultAgentName, setDefaultAgentName] = useState<string>("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -87,7 +87,19 @@ export function AIChatbot() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim()) return
+
+    console.log('🎯 Form Submit Started:', {
+      rawInput: input,
+      inputType: typeof input,
+      inputLength: input?.length || 0,
+      trimmedInput: input.trim(),
+      trimmedLength: input.trim().length
+    })
+
+    if (!input.trim()) {
+      console.log('⚠️ Empty input, returning early')
+      return
+    }
 
     const userMessage = {
       id: Date.now().toString(),
@@ -98,12 +110,19 @@ export function AIChatbot() {
     const messageText = input.trim()
     setInput("")
 
-    // Debug logging
-    console.log('Submit Debug:', {
-      useRemoteAgentMode,
-      selectedAgent,
-      defaultAgentName,
-      condition: useRemoteAgentMode && (selectedAgent || defaultAgentName)
+    // Comprehensive debug logging
+    console.log('🎯 Submit Debug - Complete State:', {
+      messageText: messageText,
+      messageTextType: typeof messageText,
+      messageTextLength: messageText.length,
+      useRemoteAgentMode: useRemoteAgentMode,
+      selectedAgent: selectedAgent,
+      selectedAgentType: typeof selectedAgent,
+      defaultAgentName: defaultAgentName,
+      defaultAgentNameType: typeof defaultAgentName,
+      agentToUse: selectedAgent || defaultAgentName,
+      condition: useRemoteAgentMode && (selectedAgent || defaultAgentName),
+      willUseRemoteAgent: useRemoteAgentMode && (selectedAgent || defaultAgentName)
     })
 
     if (useRemoteAgentMode && (selectedAgent || defaultAgentName)) {
@@ -115,9 +134,26 @@ export function AIChatbot() {
       setIsFirstQuery(false)
 
       try {
-        await sendRemoteAgentMessage(messageText, selectedAgent || defaultAgentName)
+        const agentToUse = selectedAgent || defaultAgentName
+        console.log('🚀 Sending message to RemoteAgent:', {
+          message: messageText,
+          agent: agentToUse,
+          messageLength: messageText.length
+        })
+
+        const result = await sendRemoteAgentMessage(messageText, agentToUse)
+        console.log('✅ RemoteAgent response received:', result)
+
       } catch (error) {
-        console.error('RemoteAgent error:', error)
+        console.error('❌ RemoteAgent error:', error)
+
+        // Add an error message to the chat
+        const errorMessage = {
+          id: Date.now().toString(),
+          role: "assistant" as const,
+          content: `I apologize, but I encountered an error while processing your message: "${messageText}"\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again or check the RemoteAgent configuration.`
+        }
+        setMessages(prev => [...prev, errorMessage])
       } finally {
         setIsLoading(false)
       }
@@ -172,7 +208,41 @@ Feel free to ask more questions - I'm here to help guide your trading journey!`
     }
   }, [isOpen, isMinimized])
 
-  // Fetch default agent name when component mounts or settings are opened
+  // Initialize RemoteAgent configuration on mount
+  useEffect(() => {
+    // Fetch default agent name immediately on component mount
+    const initializeAgent = async () => {
+      try {
+        console.log('🔧 Initializing RemoteAgent configuration...')
+        const response = await fetch('/api/remoteagent/config')
+        const data = await response.json()
+
+        console.log('🔧 Config response:', data)
+
+        if (data.success && data.defaultAgentName) {
+          console.log('✅ Setting default agent:', data.defaultAgentName)
+          setDefaultAgentName(data.defaultAgentName)
+          if (!selectedAgent) {
+            setSelectedAgent(data.defaultAgentName)
+          }
+          // Keep RemoteAgent mode enabled since we have a working agent
+          setUseRemoteAgentMode(true)
+        } else {
+          console.log('⚠️ No default agent available, using fallback mode')
+          // If no agent is configured, disable RemoteAgent mode
+          setUseRemoteAgentMode(false)
+        }
+      } catch (error) {
+        console.error('❌ Failed to initialize RemoteAgent:', error)
+        // On error, disable RemoteAgent mode to use fallback
+        setUseRemoteAgentMode(false)
+      }
+    }
+
+    initializeAgent()
+  }, []) // Run only once on mount
+
+  // Fetch default agent name when settings are opened (refresh check)
   useEffect(() => {
     if (isOpen && showSettings) {
       // Fetch default agent name from server

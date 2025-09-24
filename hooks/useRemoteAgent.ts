@@ -47,7 +47,37 @@ export function useRemoteAgent(options: UseRemoteAgentOptions = {}) {
     setError(null)
     setCurrentStatus('processing')
 
-    console.log('🚀 RemoteAgent Request:', { message, agentName })
+    // Validate inputs before sending
+    console.log('🔍 Input validation:', {
+      message: message,
+      messageType: typeof message,
+      messageLength: message?.length || 0,
+      agentName: agentName,
+      agentNameType: typeof agentName,
+      agentNameLength: agentName?.length || 0
+    })
+
+    if (!message || typeof message !== 'string' || message.trim().length === 0) {
+      console.error('❌ Invalid message input:', { message, type: typeof message })
+      throw new Error('Message cannot be empty')
+    }
+
+    if (!agentName || typeof agentName !== 'string' || agentName.trim().length === 0) {
+      console.error('❌ Invalid agent name:', { agentName, type: typeof agentName })
+      throw new Error('Agent name cannot be empty')
+    }
+
+    const requestPayload = {
+      message: message.trim(),
+      agentName: agentName.trim()
+    }
+
+    console.log('🚀 RemoteAgent Request Details:', {
+      url: '/api/remoteagent',
+      method: 'POST',
+      payload: requestPayload,
+      payloadString: JSON.stringify(requestPayload)
+    })
 
     // Create a new abort controller for this request
     abortControllerRef.current = new AbortController()
@@ -60,7 +90,7 @@ export function useRemoteAgent(options: UseRemoteAgentOptions = {}) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message, agentName }),
+        body: JSON.stringify(requestPayload),
         signal: abortControllerRef.current.signal
       })
 

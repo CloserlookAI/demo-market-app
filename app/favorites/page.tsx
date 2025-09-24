@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Search, Star, StarOff, TrendingUp, TrendingDown, Plus, Trash2, Info, X, Building2, Calendar, Users, DollarSign, BarChart3, Activity, Bot, Globe, Clock, Target, PieChart, Zap, Shield, TrendingUpDown, Calculator, BookOpen, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
+import { useRemoteAgent } from '@/hooks/useRemoteAgent'
 
 interface Stock {
   symbol: string
@@ -118,270 +119,334 @@ export default function FavoritesPage() {
   const [isSearching, setIsSearching] = useState(false)
   const [selectedStock, setSelectedStock] = useState<DetailedStock | null>(null)
   const [isLoadingDetails, setIsLoadingDetails] = useState(false)
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisInput, setAnalysisInput] = useState('')
 
-  // Default favorites - Apple and NVIDIA
-  useEffect(() => {
-    const defaultFavorites: Stock[] = [
-      {
-        symbol: 'AAPL',
-        name: 'Apple Inc.',
-        price: 175.43,
-        change: 2.15,
-        changePercent: 1.24
-      },
-      {
-        symbol: 'NVDA',
-        name: 'NVIDIA Corporation',
-        price: 875.28,
-        change: -12.45,
-        changePercent: -1.40
-      }
-    ]
-
-    // Load from localStorage or use defaults
-    const savedFavorites = localStorage.getItem('stockFavorites')
-    if (savedFavorites) {
-      setFavorites(JSON.parse(savedFavorites))
-    } else {
-      setFavorites(defaultFavorites)
-      localStorage.setItem('stockFavorites', JSON.stringify(defaultFavorites))
+  // RemoteAgent integration
+  const {
+    sendMessage: sendRemoteAgentMessage,
+    isLoading: isAnalyzing,
+    currentStatus,
+    error: remoteAgentError,
+  } = useRemoteAgent({
+    onComplete: (response) => {
+      // Analysis completed successfully
+      console.log('✅ RemoteAgent analysis completed:', response)
+      alert(`Analysis completed! The detailed response has been sent to your chat.`)
+      setSelectedStock(null) // Close the modal
+      setAnalysisInput('') // Clear the input
+    },
+    onError: (error) => {
+      console.error('❌ RemoteAgent analysis failed:', error)
+      alert(`Analysis failed: ${error}`)
     }
+  })
+
+  // Load and refresh favorites with real data
+  useEffect(() => {
+    const loadFavorites = async () => {
+      try {
+        // Load symbols from localStorage or use defaults
+        const savedFavoriteSymbols = localStorage.getItem('favoriteSymbols')
+        const symbolsToLoad = savedFavoriteSymbols
+          ? JSON.parse(savedFavoriteSymbols)
+          : ['AAPL', 'NVDA'] // Default symbols
+
+        // Fetch real-time data for each symbol
+        const stockPromises = symbolsToLoad.map(async (symbol: string) => {
+          try {
+            const response = await fetch(`/api/stocks/quote?symbol=${symbol}`)
+            if (response.ok) {
+              const stockData = await response.json()
+              return {
+                symbol: stockData.symbol,
+                name: stockData.name,
+                price: stockData.price,
+                change: stockData.change,
+                changePercent: stockData.changePercent
+              }
+            }
+            return null
+          } catch (error) {
+            console.error(`Failed to fetch data for ${symbol}:`, error)
+            return null
+          }
+        })
+
+        const stockResults = await Promise.all(stockPromises)
+        const validStocks = stockResults.filter((stock): stock is Stock => stock !== null)
+
+        setFavorites(validStocks)
+
+        // Save the symbols for future use
+        const symbols = validStocks.map(stock => stock.symbol)
+        localStorage.setItem('favoriteSymbols', JSON.stringify(symbols))
+      } catch (error) {
+        console.error('Failed to load favorites:', error)
+        // Fallback to empty array
+        setFavorites([])
+      }
+    }
+
+    loadFavorites()
   }, [])
 
-  // Mock stock data for search
-  const mockStocks: Stock[] = [
-    { symbol: 'AAPL', name: 'Apple Inc.', price: 175.43, change: 2.15, changePercent: 1.24 },
-    { symbol: 'NVDA', name: 'NVIDIA Corporation', price: 875.28, change: -12.45, changePercent: -1.40 },
-    { symbol: 'TSLA', name: 'Tesla, Inc.', price: 251.82, change: 5.23, changePercent: 2.12 },
-    { symbol: 'GOOGL', name: 'Alphabet Inc.', price: 138.21, change: -1.45, changePercent: -1.04 },
-    { symbol: 'MSFT', name: 'Microsoft Corporation', price: 378.85, change: 4.12, changePercent: 1.10 },
-    { symbol: 'AMZN', name: 'Amazon.com Inc.', price: 147.98, change: -0.87, changePercent: -0.58 },
-    { symbol: 'META', name: 'Meta Platforms Inc.', price: 296.73, change: 8.45, changePercent: 2.93 },
-    { symbol: 'NFLX', name: 'Netflix Inc.', price: 445.03, change: -2.31, changePercent: -0.52 },
-    { symbol: 'AMD', name: 'Advanced Micro Devices', price: 152.18, change: 3.67, changePercent: 2.47 },
-    { symbol: 'INTC', name: 'Intel Corporation', price: 43.61, change: -0.23, changePercent: -0.52 }
-  ]
+  // Real-time stock search functionality
 
-  // Mock detailed stock data
-  const getDetailedStockData = (symbol: string): DetailedStock => {
-    const mockDetailedData: Record<string, DetailedStock> = {
-      'AAPL': {
-        symbol: 'AAPL',
-        name: 'Apple Inc.',
-        price: 175.43,
-        change: 2.15,
-        changePercent: 1.24,
-        marketCap: '$2.75T',
-        volume: '52.8M',
-        avgVolume: '48.3M',
-        peRatio: 28.5,
-        eps: 6.16,
-        dividend: 0.96,
-        dividendYield: 0.55,
-        weekHigh52: 199.62,
-        weekLow52: 124.17,
-        beta: 1.29,
-        sector: 'Technology',
-        industry: 'Consumer Electronics',
-        employees: '161,000',
-        founded: '1976',
-        headquarters: 'Cupertino, California',
-        ceo: 'Tim Cook',
-        description: 'Apple Inc. designs, manufactures, and markets smartphones, personal computers, tablets, wearables, and accessories worldwide. The company serves consumers, and small and mid-sized businesses; and the education, enterprise, and government markets.',
+  // Get detailed stock data from API
+  const getDetailedStockData = async (symbol: string): Promise<DetailedStock> => {
+    try {
+      const [profileResponse, quoteResponse] = await Promise.all([
+        fetch(`/api/stocks/profile?symbol=${symbol}`),
+        fetch(`/api/stocks/quote?symbol=${symbol}`)
+      ])
 
-        // Additional Financial Metrics
-        pbRatio: 7.8,
-        pegRatio: 2.1,
-        psRatio: 7.2,
-        priceToBook: 7.8,
-        priceToSales: 7.2,
-        enterpriseValue: '$2.71T',
-        evToRevenue: 7.1,
-        evToEbitda: 20.3,
-        grossMargin: 44.1,
-        operatingMargin: 29.8,
-        netMargin: 25.3,
-        roe: 160.5,
-        roa: 22.4,
-        debtToEquity: 1.73,
-        currentRatio: 1.02,
-        quickRatio: 0.92,
+      const [profileData, quoteData] = await Promise.all([
+        profileResponse.json(),
+        quoteResponse.json()
+      ])
 
-        // Revenue & Growth
-        revenue: '$383.3B',
-        revenueGrowthYoY: -2.8,
-        revenueGrowthQoQ: 1.4,
-        earningsGrowthYoY: -13.4,
-        earningsGrowthQoQ: 4.8,
+      // Combine data from both APIs to create comprehensive stock details
+      const detailedStock: DetailedStock = {
+        // Basic Information
+        symbol: profileData.symbol || symbol,
+        name: profileData.longName || profileData.name || symbol,
+        price: quoteData.price || 0,
+        change: quoteData.change || 0,
+        changePercent: quoteData.changePercent || 0,
 
-        // Cash Flow
-        freeCashFlow: '$84.7B',
-        operatingCashFlow: '$99.6B',
+        // Market Data
+        marketCap: formatLargeNumber(profileData.marketCap || 0),
+        volume: formatLargeNumber(quoteData.volume || 0),
+        avgVolume: formatLargeNumber(profileData.averageVolume || 0),
 
-        // Analyst Data
-        analystRating: 'Buy',
-        analystTargetPrice: 195.50,
-        analystCount: 42,
-        buyRatings: 28,
-        holdRatings: 12,
-        sellRatings: 2,
+        // Financial Ratios
+        peRatio: profileData.peRatio || profileData.trailingPE || 0,
+        eps: (profileData.marketCap && profileData.sharesOutstanding)
+          ? profileData.marketCap / profileData.sharesOutstanding : 0,
+        dividend: profileData.dividendRate || 0,
+        dividendYield: (profileData.dividendYield || 0) * 100,
 
-        // Market Performance
-        dayHigh: 177.30,
-        dayLow: 174.20,
-        monthHigh1: 185.92,
-        monthLow1: 164.08,
-        monthHigh3: 199.62,
-        monthLow3: 164.08,
-        ytdReturn: 12.3,
-        month1Return: 5.8,
-        month3Return: -2.1,
-        month6Return: 8.7,
-        year1Return: 15.2,
-        year3Return: 67.4,
-        year5Return: 234.7,
+        // Price Ranges
+        weekHigh52: profileData.high52Week || quoteData.fiftyTwoWeekHigh || 0,
+        weekLow52: profileData.low52Week || quoteData.fiftyTwoWeekLow || 0,
+        dayHigh: quoteData.dayHigh || 0,
+        dayLow: quoteData.dayLow || 0,
 
-        // Institutional Holdings
-        institutionalOwnership: 60.4,
-        insiderOwnership: 0.07,
-        shortInterest: 1.2,
-        shortRatio: 1.8,
+        // Company Info
+        sector: profileData.sector || 'Unknown',
+        industry: profileData.industry || 'Unknown',
+        employees: formatLargeNumber(profileData.fullTimeEmployees || 0),
+        founded: 'N/A', // Not available in Yahoo Finance
+        headquarters: `${profileData.city || ''}, ${profileData.state || ''} ${profileData.country || ''}`.trim(),
+        ceo: 'N/A', // Not available in Yahoo Finance
+        description: profileData.businessSummary || 'No description available',
+        website: profileData.website || '',
 
-        // Additional Company Info
-        website: 'https://www.apple.com',
-        exchange: 'NASDAQ',
-        currency: 'USD',
-        country: 'United States',
-        timeZone: 'America/New_York',
-        lastEarningsDate: '2024-08-01',
-        nextEarningsDate: '2024-11-01',
-        exDividendDate: '2024-08-12',
-
-        // Risk Metrics
-        volatility30Day: 24.8,
-        volatility52Week: 28.3,
-        sharpeRatio: 0.73,
-        informationRatio: 0.42
-      },
-      'NVDA': {
-        symbol: 'NVDA',
-        name: 'NVIDIA Corporation',
-        price: 875.28,
-        change: -12.45,
-        changePercent: -1.40,
-        marketCap: '$2.16T',
-        volume: '28.4M',
-        avgVolume: '34.7M',
-        peRatio: 65.8,
-        eps: 13.31,
-        dividend: 0.16,
-        dividendYield: 0.02,
-        weekHigh52: 974.00,
-        weekLow52: 206.26,
-        beta: 1.68,
-        sector: 'Technology',
-        industry: 'Semiconductors',
-        employees: '29,600',
-        founded: '1993',
-        headquarters: 'Santa Clara, California',
-        ceo: 'Jensen Huang',
-        description: 'NVIDIA Corporation operates as a computing platform company worldwide. The company operates in two segments, Graphics and Compute & Networking. Its Graphics segment offers GeForce GPUs for gaming and PCs, the GeForce NOW game streaming service and related infrastructure.',
-
-        // Additional Financial Metrics
-        pbRatio: 12.4,
-        pegRatio: 1.8,
-        psRatio: 22.1,
-        priceToBook: 12.4,
-        priceToSales: 22.1,
-        enterpriseValue: '$2.14T',
-        evToRevenue: 21.8,
-        evToEbitda: 45.2,
-        grossMargin: 78.4,
-        operatingMargin: 62.1,
-        netMargin: 55.0,
-        roe: 123.7,
-        roa: 35.8,
-        debtToEquity: 0.24,
-        currentRatio: 5.54,
-        quickRatio: 4.89,
+        // Advanced Financial Metrics
+        pbRatio: profileData.priceToBook || 0,
+        pegRatio: profileData.pegRatio || 0,
+        psRatio: 0, // Calculate if revenue available
+        priceToBook: profileData.priceToBook || 0,
+        priceToSales: 0, // Calculate if revenue available
+        enterpriseValue: formatLargeNumber(profileData.enterpriseValue || 0),
+        evToRevenue: profileData.enterpriseToRevenue || 0,
+        evToEbitda: profileData.enterpriseToEbitda || 0,
+        grossMargin: (profileData.grossMargins || 0) * 100,
+        operatingMargin: (profileData.operatingMargins || 0) * 100,
+        netMargin: (profileData.profitMargins || 0) * 100,
+        roe: (profileData.returnOnEquity || 0) * 100,
+        roa: (profileData.returnOnAssets || 0) * 100,
+        debtToEquity: profileData.debtToEquity || 0,
+        currentRatio: 0, // Not available
+        quickRatio: 0, // Not available
 
         // Revenue & Growth
-        revenue: '$96.3B',
-        revenueGrowthYoY: 206.0,
-        revenueGrowthQoQ: 22.1,
-        earningsGrowthYoY: 581.0,
-        earningsGrowthQoQ: 28.0,
+        revenue: formatLargeNumber(profileData.totalRevenue || 0),
+        revenueGrowthYoY: (profileData.revenueGrowth || 0) * 100,
+        revenueGrowthQoQ: 0, // Not available
+        earningsGrowthYoY: (profileData.earningsGrowth || 0) * 100,
+        earningsGrowthQoQ: (profileData.earningsQuarterlyGrowth || 0) * 100,
 
         // Cash Flow
-        freeCashFlow: '$50.1B',
-        operatingCashFlow: '$57.4B',
+        freeCashFlow: formatLargeNumber(profileData.freeCashflow || 0),
+        operatingCashFlow: formatLargeNumber(profileData.operatingCashflow || 0),
 
         // Analyst Data
-        analystRating: 'Strong Buy',
-        analystTargetPrice: 950.00,
-        analystCount: 45,
-        buyRatings: 38,
-        holdRatings: 6,
-        sellRatings: 1,
+        analystRating: mapRecommendationToRating(profileData.recommendationKey),
+        analystTargetPrice: profileData.targetMeanPrice || 0,
+        analystCount: profileData.numberOfAnalystOpinions || 0,
+        buyRatings: 0, // Not available in detail
+        holdRatings: 0, // Not available in detail
+        sellRatings: 0, // Not available in detail
 
         // Market Performance
-        dayHigh: 882.50,
-        dayLow: 869.15,
-        monthHigh1: 950.02,
-        monthLow1: 788.50,
-        monthHigh3: 974.00,
-        monthLow3: 690.00,
-        ytdReturn: 178.5,
-        month1Return: 12.4,
-        month3Return: 28.7,
-        month6Return: 89.2,
-        year1Return: 324.8,
-        year3Return: 890.3,
-        year5Return: 2845.7,
+        monthHigh1: 0, // Not available
+        monthLow1: 0, // Not available
+        monthHigh3: 0, // Not available
+        monthLow3: 0, // Not available
+        ytdReturn: 0, // Not available
+        month1Return: 0, // Not available
+        month3Return: 0, // Not available
+        month6Return: 0, // Not available
+        year1Return: 0, // Not available
+        year3Return: 0, // Not available
+        year5Return: 0, // Not available
 
-        // Institutional Holdings
-        institutionalOwnership: 65.2,
-        insiderOwnership: 4.3,
-        shortInterest: 0.8,
-        shortRatio: 0.9,
+        // Holdings & Short Interest
+        institutionalOwnership: 0, // Not available
+        insiderOwnership: 0, // Not available
+        shortInterest: (profileData.shortPercentOfFloat || 0) * 100,
+        shortRatio: profileData.shortRatio || 0,
 
-        // Additional Company Info
-        website: 'https://www.nvidia.com',
-        exchange: 'NASDAQ',
-        currency: 'USD',
-        country: 'United States',
-        timeZone: 'America/New_York',
-        lastEarningsDate: '2024-08-28',
-        nextEarningsDate: '2024-11-20',
-        exDividendDate: '2024-08-28',
+        // Exchange Info
+        exchange: profileData.exchange || quoteData.exchange || '',
+        currency: profileData.currency || quoteData.currency || 'USD',
+        country: profileData.country || 'United States',
+        timeZone: profileData.exchangeTimezoneName || 'America/New_York',
+        lastEarningsDate: 'N/A',
+        nextEarningsDate: 'N/A',
+        exDividendDate: profileData.exDividendDate ? new Date(profileData.exDividendDate * 1000).toISOString().split('T')[0] : 'N/A',
 
-        // Risk Metrics
-        volatility30Day: 45.2,
-        volatility52Week: 62.8,
-        sharpeRatio: 2.14,
-        informationRatio: 1.87
+        // Risk & Technical
+        beta: profileData.beta || 0,
+        volatility30Day: 0, // Not available
+        volatility52Week: 0, // Not available
+        sharpeRatio: 0, // Not available
+        informationRatio: 0 // Not available
+      }
+
+      return detailedStock
+    } catch (error) {
+      console.error(`Failed to fetch detailed data for ${symbol}:`, error)
+
+      // Return minimal data structure on error
+      return {
+        symbol,
+        name: symbol,
+        price: 0,
+        change: 0,
+        changePercent: 0,
+        marketCap: 'N/A',
+        volume: 'N/A',
+        avgVolume: 'N/A',
+        peRatio: 0,
+        eps: 0,
+        dividend: 0,
+        dividendYield: 0,
+        weekHigh52: 0,
+        weekLow52: 0,
+        beta: 0,
+        sector: 'Unknown',
+        industry: 'Unknown',
+        employees: 'N/A',
+        founded: 'N/A',
+        headquarters: 'N/A',
+        ceo: 'N/A',
+        description: 'Data not available',
+        website: '',
+
+        // Set all other fields to default values
+        pbRatio: 0, pegRatio: 0, psRatio: 0, priceToBook: 0, priceToSales: 0,
+        enterpriseValue: 'N/A', evToRevenue: 0, evToEbitda: 0,
+        grossMargin: 0, operatingMargin: 0, netMargin: 0, roe: 0, roa: 0,
+        debtToEquity: 0, currentRatio: 0, quickRatio: 0,
+        revenue: 'N/A', revenueGrowthYoY: 0, revenueGrowthQoQ: 0,
+        earningsGrowthYoY: 0, earningsGrowthQoQ: 0,
+        freeCashFlow: 'N/A', operatingCashFlow: 'N/A',
+        analystRating: 'N/A', analystTargetPrice: 0, analystCount: 0,
+        buyRatings: 0, holdRatings: 0, sellRatings: 0,
+        dayHigh: 0, dayLow: 0, monthHigh1: 0, monthLow1: 0, monthHigh3: 0, monthLow3: 0,
+        ytdReturn: 0, month1Return: 0, month3Return: 0, month6Return: 0,
+        year1Return: 0, year3Return: 0, year5Return: 0,
+        institutionalOwnership: 0, insiderOwnership: 0, shortInterest: 0, shortRatio: 0,
+        exchange: '', currency: 'USD', country: '', timeZone: '',
+        lastEarningsDate: 'N/A', nextEarningsDate: 'N/A', exDividendDate: 'N/A',
+        volatility30Day: 0, volatility52Week: 0, sharpeRatio: 0, informationRatio: 0
       }
     }
-
-    return mockDetailedData[symbol] || mockDetailedData['AAPL']
   }
 
-  // Search functionality
-  useEffect(() => {
-    if (searchQuery.length > 0) {
-      setIsSearching(true)
-      const timer = setTimeout(() => {
-        const filtered = mockStocks.filter(
-          stock =>
-            stock.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            stock.name.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-        setSearchResults(filtered)
-        setIsSearching(false)
-      }, 300)
+  // Helper functions
+  const formatLargeNumber = (num: number): string => {
+    if (num === 0) return '0'
+    if (num >= 1e12) return `$${(num / 1e12).toFixed(2)}T`
+    if (num >= 1e9) return `$${(num / 1e9).toFixed(2)}B`
+    if (num >= 1e6) return `${(num / 1e6).toFixed(1)}M`
+    if (num >= 1e3) return `${(num / 1e3).toFixed(1)}K`
+    return num.toString()
+  }
 
+  const mapRecommendationToRating = (key: string): string => {
+    const ratingMap: { [key: string]: string } = {
+      'STRONG_BUY': 'Strong Buy',
+      'BUY': 'Buy',
+      'HOLD': 'Hold',
+      'UNDERPERFORM': 'Underperform',
+      'SELL': 'Sell'
+    }
+    return ratingMap[key] || 'N/A'
+  }
+
+  // Real-time search functionality
+  useEffect(() => {
+    if (searchQuery.length > 1) {
+      setIsSearching(true)
+
+      const searchStocks = async () => {
+        try {
+          // Search for stocks using the real API
+          const searchResponse = await fetch(`/api/stocks/search?q=${encodeURIComponent(searchQuery)}`)
+          if (searchResponse.ok) {
+            const searchData = await searchResponse.json()
+
+            // Get quotes for the found stocks to include price data
+            const stockPromises = searchData.results.slice(0, 6).map(async (result: any) => {
+              try {
+                const quoteResponse = await fetch(`/api/stocks/quote?symbol=${result.symbol}`)
+                if (quoteResponse.ok) {
+                  const quoteData = await quoteResponse.json()
+                  return {
+                    symbol: quoteData.symbol,
+                    name: quoteData.name,
+                    price: quoteData.price,
+                    change: quoteData.change,
+                    changePercent: quoteData.changePercent
+                  }
+                }
+                // Fallback without price data
+                return {
+                  symbol: result.symbol,
+                  name: result.name,
+                  price: 0,
+                  change: 0,
+                  changePercent: 0
+                }
+              } catch (error) {
+                console.error(`Failed to fetch quote for ${result.symbol}:`, error)
+                return {
+                  symbol: result.symbol,
+                  name: result.name,
+                  price: 0,
+                  change: 0,
+                  changePercent: 0
+                }
+              }
+            })
+
+            const stockResults = await Promise.all(stockPromises)
+            setSearchResults(stockResults)
+          } else {
+            setSearchResults([])
+          }
+        } catch (error) {
+          console.error('Search error:', error)
+          setSearchResults([])
+        } finally {
+          setIsSearching(false)
+        }
+      }
+
+      const timer = setTimeout(searchStocks, 300)
       return () => clearTimeout(timer)
     } else {
       setSearchResults([])
@@ -395,7 +460,11 @@ export default function FavoritesPage() {
     if (!isAlreadyFavorite) {
       const updatedFavorites = [...favorites, stock]
       setFavorites(updatedFavorites)
-      localStorage.setItem('stockFavorites', JSON.stringify(updatedFavorites))
+
+      // Save symbols for persistence
+      const symbols = updatedFavorites.map(fav => fav.symbol)
+      localStorage.setItem('favoriteSymbols', JSON.stringify(symbols))
+
       setSearchQuery('')
       setSearchResults([])
     }
@@ -405,7 +474,10 @@ export default function FavoritesPage() {
   const removeFromFavorites = (symbol: string) => {
     const updatedFavorites = favorites.filter(fav => fav.symbol !== symbol)
     setFavorites(updatedFavorites)
-    localStorage.setItem('stockFavorites', JSON.stringify(updatedFavorites))
+
+    // Save symbols for persistence
+    const symbols = updatedFavorites.map(fav => fav.symbol)
+    localStorage.setItem('favoriteSymbols', JSON.stringify(symbols))
   }
 
   // Check if stock is in favorites
@@ -435,65 +507,55 @@ export default function FavoritesPage() {
       return
     }
 
-    setIsAnalyzing(true)
     try {
       const userRequest = customRequest || analysisInput.trim()
 
       const baseStockInfo = `Stock Information for ${stock.name} (${stock.symbol}):
 
-      Current Price: $${stock.price}
-      Change: ${stock.change >= 0 ? '+' : ''}${stock.change} (${stock.changePercent}%)
-      Market Cap: ${stock.marketCap}
-      P/E Ratio: ${stock.peRatio}
-      EPS: $${stock.eps}
-      Revenue: ${stock.revenue}
-      Revenue Growth (YoY): ${stock.revenueGrowthYoY}%
-      Earnings Growth (YoY): ${stock.earningsGrowthYoY}%
-      52W High: $${stock.weekHigh52}
-      52W Low: $${stock.weekLow52}
-      Beta: ${stock.beta}
-      Volume: ${stock.volume}
-      ROE: ${stock.roe}%
-      Debt to Equity: ${stock.debtToEquity}
-      Sector: ${stock.sector}
-      Industry: ${stock.industry}
-      Analyst Rating: ${stock.analystRating}
-      Target Price: $${stock.analystTargetPrice}
+Current Price: $${stock.price}
+Change: ${stock.change >= 0 ? '+' : ''}${stock.change} (${stock.changePercent}%)
+Market Cap: ${stock.marketCap}
+P/E Ratio: ${stock.peRatio}
+EPS: $${stock.eps}
+Revenue: ${stock.revenue}
+Revenue Growth (YoY): ${stock.revenueGrowthYoY}%
+Earnings Growth (YoY): ${stock.earningsGrowthYoY}%
+52W High: $${stock.weekHigh52}
+52W Low: $${stock.weekLow52}
+Beta: ${stock.beta}
+Volume: ${stock.volume}
+ROE: ${stock.roe}%
+Debt to Equity: ${stock.debtToEquity}
+Sector: ${stock.sector}
+Industry: ${stock.industry}
+Analyst Rating: ${stock.analystRating}
+Target Price: $${stock.analystTargetPrice}
 
-      Additional Metrics:
-      - Gross Margin: ${stock.grossMargin}%
-      - Operating Margin: ${stock.operatingMargin}%
-      - Free Cash Flow: ${stock.freeCashFlow}
-      - Current Ratio: ${stock.currentRatio}
-      - Quick Ratio: ${stock.quickRatio}
-      - Volatility (30D): ${stock.volatility30Day}%
-      - Institutional Ownership: ${stock.institutionalOwnership}%`
+Additional Metrics:
+- Gross Margin: ${stock.grossMargin}%
+- Operating Margin: ${stock.operatingMargin}%
+- Free Cash Flow: ${stock.freeCashFlow}
+- Current Ratio: ${stock.currentRatio}
+- Quick Ratio: ${stock.quickRatio}
+- Volatility (30D): ${stock.volatility30Day}%
+- Institutional Ownership: ${stock.institutionalOwnership}%
 
-      const analysisPrompt = `${baseStockInfo}
+User Request: "${userRequest}"
 
-      User Request: "${userRequest}"
+Please provide a detailed analysis focusing specifically on what the user asked about. Use the stock data provided to give comprehensive insights, recommendations, and actionable advice. Format your response professionally with clear sections and bullet points where appropriate.`
 
-      Please provide a detailed analysis focusing specifically on what the user asked about. Use the stock data provided to give comprehensive insights, recommendations, and actionable advice. Format your response professionally with clear sections and bullet points where appropriate.`
+      console.log('🚀 Sending analysis request to RemoteAgent:', {
+        userRequest,
+        stockSymbol: stock.symbol,
+        promptLength: baseStockInfo.length
+      })
 
-      // Here you would integrate with your RemoteAgent API
-      // For now, we'll simulate the analysis trigger
-      console.log('Analyzing with RemoteAgent:', analysisPrompt)
-
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1500))
-
-      // Close the modal and show a success message
-      setSelectedStock(null)
-      setAnalysisInput('') // Clear the input
-
-      // You could redirect to a chat interface or show results in a new modal
-      alert(`Stock analysis request sent to RemoteAgent: "${userRequest}"\n\nCheck your chat for detailed analysis results.`)
+      // Send the analysis request to RemoteAgent
+      await sendRemoteAgentMessage(baseStockInfo, 'stock-analysis-agent')
 
     } catch (error) {
-      console.error('Error analyzing stock:', error)
+      console.error('❌ Error analyzing stock:', error)
       alert('Failed to analyze stock. Please try again.')
-    } finally {
-      setIsAnalyzing(false)
     }
   }
 
