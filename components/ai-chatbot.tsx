@@ -110,13 +110,8 @@ export function AIChatbot() {
       // Use RemoteAgent
       setIsLoading(true)
 
-      // Always add loading message for RemoteAgent requests
-      const loadingMessage = {
-        id: "loading",
-        role: "assistant" as const,
-        content: "RemoteAgent processing your request..."
-      }
-      setMessages(prev => [...prev, loadingMessage])
+      // Skip adding loading message for RemoteAgent requests
+      // Only show the analyzing status in the typing indicator
       setIsFirstQuery(false)
 
       try {
@@ -455,9 +450,7 @@ Feel free to ask more questions - I'm here to help guide your trading journey!`
                   <div className="bg-white border border-gray-200/80 rounded-2xl px-4 py-3 text-sm shadow-md">
                     <div className="flex items-center gap-2">
                       <span className="text-gray-600 font-medium">
-                        {currentStatus ?
-                          (currentStatus === 'processing' ? 'RemoteAgent analyzing' : 'RemoteAgent thinking')
-                          : 'RemoteAgent thinking'}
+                        RemoteAgent analyzing
                       </span>
                       <div className="flex gap-1">
                         <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce" />
