@@ -157,6 +157,7 @@ export function AIChatbot() {
     if (useRemoteAgentMode && (selectedAgent || defaultAgentName)) {
       // Use RemoteAgent
       setIsLoading(true)
+      setError(null) // Clear any previous errors
 
       // Add loading message for RemoteAgent requests
       const loadingMessage = {
@@ -565,7 +566,7 @@ Feel free to ask more questions - I'm here to help guide your trading journey!`
                 </div>
               )}
 
-              {error && (
+              {error && error !== 'Generic error' && (
                 <div className="flex gap-3 justify-start animate-fade-in">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg border border-red-200 overflow-hidden">
                     <img
@@ -575,7 +576,7 @@ Feel free to ask more questions - I'm here to help guide your trading journey!`
                     />
                   </div>
                   <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 shadow-sm">
-                    I encountered an error. Please try again.
+                    {typeof error === 'string' ? error : 'An unexpected error occurred. Please try again.'}
                   </div>
                 </div>
               )}

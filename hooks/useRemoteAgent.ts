@@ -45,7 +45,7 @@ export function useRemoteAgent(options: UseRemoteAgentOptions = {}) {
 
   const sendMessage = useCallback(async (message: string, agentName: string): Promise<string | null> => {
     setIsLoading(true)
-    setError(null)
+    setError(null) // Always clear errors when starting a new request
     setCurrentStatus('processing')
     setLastCompletedResponse(null) // Reset to allow new responses
 
@@ -184,10 +184,13 @@ export function useRemoteAgent(options: UseRemoteAgentOptions = {}) {
           console.log('🔄 Polling in progress, response not ready yet...')
         }
       } else {
-        const errorMessage = 'An unexpected error occurred'
-        setError(errorMessage)
-        if (onError) {
-          onError(errorMessage)
+        // Only show specific errors, not generic ones
+        const errorMessage = err instanceof Error ? err.message : String(err)
+        if (errorMessage && !errorMessage.includes('An unexpected error occurred')) {
+          setError(errorMessage)
+          if (onError) {
+            onError(errorMessage)
+          }
         }
       }
       return null
