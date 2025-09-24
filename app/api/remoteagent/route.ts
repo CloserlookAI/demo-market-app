@@ -125,10 +125,14 @@ export async function POST(req: NextRequest) {
     })
 
     const finalResponse = extractFinalResponse(response)
-    console.log('📤 Extracted final response:', finalResponse.substring(0, 500), '...')
+    console.log('📤 Extracted final response type:', typeof finalResponse)
+    console.log('📤 Extracted final response content:', finalResponse.substring(0, 500), '...')
+
+    // Ensure finalResponse is always a string
+    const safeResponse = typeof finalResponse === 'string' ? finalResponse : JSON.stringify(finalResponse)
 
     // Extra validation to ensure we don't return empty responses
-    if (!finalResponse || finalResponse === 'No response available' || finalResponse.includes('No response available')) {
+    if (!safeResponse || safeResponse === 'No response available' || safeResponse.includes('No response available')) {
       console.error('🚨 Empty response detected, providing fallback')
       return Response.json({
         success: true,
@@ -147,7 +151,7 @@ export async function POST(req: NextRequest) {
       responseId: response.id,
       status: response.status,
       agentName: response.agent_name,
-      finalResponse,
+      finalResponse: safeResponse, // Use the safe string response
       isComplete: true,
       message: 'Response completed successfully.'
     })

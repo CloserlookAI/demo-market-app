@@ -168,6 +168,81 @@ export class RemoteAgentClient {
 export function extractFinalResponse(response: any): string {
   console.log('🔍 Extracting response from:', JSON.stringify(response, null, 2))
 
+  // Ensure we always return a string
+  const ensureString = (value: any): string => {
+    if (typeof value === 'string') return value
+    if (typeof value === 'object' && value !== null) {
+      return formatStructuredData(value)
+    }
+    return String(value || '')
+  }
+
+  // Format structured data (like JSON) into readable text
+  const formatStructuredData = (data: any): string => {
+    try {
+      // If it's a stock data response, format it nicely
+      if (data.symbol && data.companyName) {
+        return formatStockData(data)
+      }
+
+      // For other structured data, create a formatted display
+      if (typeof data === 'object' && data !== null) {
+        const entries = Object.entries(data)
+        if (entries.length > 0) {
+          return entries
+            .map(([key, value]) => `**${formatKey(key)}**: ${formatValue(value)}`)
+            .join('\n\n')
+        }
+      }
+
+      // Fallback to JSON string
+      return JSON.stringify(data, null, 2)
+    } catch (error) {
+      return JSON.stringify(data, null, 2)
+    }
+  }
+
+  // Format stock-specific data
+  const formatStockData = (data: any): string => {
+    const formatNumber = (num: number, decimals: number = 2): string => {
+      if (num >= 1e12) return `$${(num / 1e12).toFixed(decimals)}T`
+      if (num >= 1e9) return `$${(num / 1e9).toFixed(decimals)}B`
+      if (num >= 1e6) return `$${(num / 1e6).toFixed(decimals)}M`
+      if (num >= 1e3) return `$${(num / 1e3).toFixed(decimals)}K`
+      return `$${num.toFixed(decimals)}`
+    }
+
+    return `📈 **${data.companyName} (${data.symbol})**
+
+**Current Price**: ${formatNumber(data.currentPrice || 0)}
+**Market Cap**: ${formatNumber(data.marketCap || 0)}
+**P/E Ratio**: ${(data.peRatio || 0).toFixed(2)}
+
+*Real-time stock information*`
+  }
+
+  // Format object keys to be more readable
+  const formatKey = (key: string): string => {
+    return key
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase())
+      .trim()
+  }
+
+  // Format values appropriately
+  const formatValue = (value: any): string => {
+    if (typeof value === 'number') {
+      if (value > 1000000) {
+        return (value / 1000000).toFixed(2) + 'M'
+      }
+      return value.toLocaleString()
+    }
+    if (typeof value === 'string') {
+      return value
+    }
+    return String(value)
+  }
+
   // Handle the new response structure with output_content
   if (response.output_content && Array.isArray(response.output_content)) {
     console.log('✅ Found output_content array')
@@ -175,7 +250,20 @@ export function extractFinalResponse(response: any): string {
     // Get all content from output_content array
     const contents = response.output_content
       .filter((item: any) => item.content)
-      .map((item: any) => item.content)
+      .map((item: any) => {
+        const content = item.content
+        // Try to parse JSON strings and format them nicely
+        if (typeof content === 'string') {
+          try {
+            const parsed = JSON.parse(content)
+            return formatStructuredData(parsed)
+          } catch {
+            // Not JSON, return as-is
+            return content
+          }
+        }
+        return ensureString(content)
+      })
 
     if (contents.length > 0) {
       const combinedContent = contents.join('\n\n')
@@ -187,34 +275,34 @@ export function extractFinalResponse(response: any): string {
   // Fallback: try to get the final text from output.text (old structure)
   if (response.output?.text) {
     console.log('✅ Found output.text:', response.output.text)
-    return response.output.text
+    return ensureString(response.output.text)
   }
 
   // If not available, look for final item in items array (old structure)
   const finalItem = response.output?.items?.find((item: any) => item.type === 'final')
   if (finalItem?.text) {
     console.log('✅ Found final item:', finalItem.text)
-    return finalItem.text
+    return ensureString(finalItem.text)
   }
 
   // If still no final response, concatenate all text content (old structure)
   const textItems = response.output?.items?.filter((item: any) => item.text) || []
   if (textItems.length > 0) {
-    const combinedText = textItems.map((item: any) => item.text).join('\n')
+    const combinedText = textItems.map((item: any) => ensureString(item.text)).join('\n')
     console.log('✅ Found text items:', combinedText)
-    return combinedText
+    return ensureString(combinedText)
   }
 
   // Try to extract from segments if available
   if (response.segments && Array.isArray(response.segments)) {
     const textSegments = response.segments
       .filter((segment: any) => segment.text && segment.type !== 'tool_call' && segment.type !== 'tool_result')
-      .map((segment: any) => segment.text)
+      .map((segment: any) => ensureString(segment.text))
 
     if (textSegments.length > 0) {
       const combinedSegments = textSegments.join('\n')
       console.log('✅ Found text in segments:', combinedSegments)
-      return combinedSegments
+      return ensureString(combinedSegments)
     }
   }
 
@@ -237,7 +325,7 @@ export function extractFinalResponse(response: any): string {
   }
 
   console.log('❌ No response content found')
-  return 'No response available'
+  return ensureString('No response available')
 }
 
 // Environment variable helpers
