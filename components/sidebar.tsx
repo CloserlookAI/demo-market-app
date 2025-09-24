@@ -12,10 +12,16 @@ import {
   Building2,
   History,
   Users,
+  Star,
   ChevronRight
 } from "lucide-react"
 
 const sidebarItems = [
+  {
+    name: "Favorites",
+    href: "/favorites",
+    icon: Star
+  },
   {
     name: "News",
     href: "/news",
