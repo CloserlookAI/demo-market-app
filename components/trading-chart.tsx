@@ -441,9 +441,16 @@ export function TradingChart({ symbol, data, currentPrice, change, changePercent
                   axisLine={false}
                   tickLine={false}
                   tick={{ fontSize: 11, fill: textColor, fontWeight: 500 }}
-                  interval={timeframe === '1D' ? Math.floor(processedData.data.length / 8) : 'preserveStartEnd'}
-                  minTickGap={40}
+                  interval={timeframe === '1D' ? 'preserveStart' : 'preserveStartEnd'}
+                  minTickGap={timeframe === '1D' ? 60 : 40}
                   height={30}
+                  tickFormatter={(value, index) => {
+                    if (timeframe === '1D') {
+                      // For 1D view, show only every 6th tick to prevent overcrowding
+                      return index % 6 === 0 ? value : ''
+                    }
+                    return value
+                  }}
                 />
 
                 <YAxis
