@@ -13,7 +13,8 @@ import {
   History,
   Users,
   Star,
-  ChevronRight
+  ChevronRight,
+  BarChart3
 } from "lucide-react"
 
 const sidebarItems = [
@@ -46,6 +47,11 @@ const sidebarItems = [
     name: "Holders",
     href: "/holders",
     icon: Users
+  },
+  {
+    name: "Analysis",
+    href: "/analysis",
+    icon: BarChart3
   }
 ]
 
