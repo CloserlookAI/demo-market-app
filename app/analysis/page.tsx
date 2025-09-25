@@ -84,15 +84,6 @@ export default function AnalysisPage() {
                   <span className="text-gray-700">15+ metrics</span>
                 </div>
               </div>
-              <div className="flex space-x-2">
-                <Button className="flex-1 bg-black hover:bg-gray-800 text-white text-base">
-                  <Eye className="w-4 h-4 mr-2" />
-                  View Report
-                </Button>
-                <Button variant="outline" size="sm">
-                  <Download className="w-4 h-4" />
-                </Button>
-              </div>
             </CardContent>
           </Card>
 
@@ -123,15 +114,6 @@ export default function AnalysisPage() {
                   <span className="text-gray-700">All major sectors</span>
                 </div>
               </div>
-              <div className="flex space-x-2">
-                <Button className="flex-1 bg-black hover:bg-gray-800 text-white text-base">
-                  <Eye className="w-4 h-4 mr-2" />
-                  View Report
-                </Button>
-                <Button variant="outline" size="sm">
-                  <Download className="w-4 h-4" />
-                </Button>
-              </div>
             </CardContent>
           </Card>
 
@@ -161,15 +143,6 @@ export default function AnalysisPage() {
                   <span className="text-gray-500">Metrics:</span>
                   <span className="text-gray-700">20+ ratios</span>
                 </div>
-              </div>
-              <div className="flex space-x-2">
-                <Button className="flex-1 bg-black hover:bg-gray-800 text-white text-base">
-                  <Eye className="w-4 h-4 mr-2" />
-                  View Report
-                </Button>
-                <Button variant="outline" size="sm">
-                  <Download className="w-4 h-4" />
-                </Button>
               </div>
             </CardContent>
           </Card>

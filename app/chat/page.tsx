@@ -148,28 +148,26 @@ function ChatPageContent() {
     <div className="h-screen bg-white overflow-hidden">
       {/* Top Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white h-16 flex-shrink-0">
-        <div className="flex items-center space-x-4">
-          <Button
-            variant="outline"
-            onClick={() => router.push('/analysis')}
-            className="flex items-center space-x-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Analysis</span>
-          </Button>
-          <div className="flex items-center space-x-3">
-            <div className="flex items-center justify-center w-10 h-10 bg-black rounded-full">
-              <Bot className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900">RemoteAgent Canvas</h1>
-              <div className="flex items-center space-x-2 text-sm text-gray-500">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span>AI Assistant Active</span>
-              </div>
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center justify-center w-10 h-10 bg-black rounded-full">
+            <Bot className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900">RemoteAgent Canvas</h1>
+            <div className="flex items-center space-x-2 text-sm text-gray-500">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span>AI Assistant Active</span>
             </div>
           </div>
         </div>
+        <Button
+          variant="outline"
+          onClick={() => router.push('/analysis')}
+          className="flex items-center space-x-2"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Analysis</span>
+        </Button>
       </div>
 
       {/* Main Content Area */}
@@ -253,8 +251,8 @@ function ChatPageContent() {
 
             {/* Chat Input */}
             <div className="border-t border-gray-200 bg-white p-6">
-              <div className="flex items-end space-x-3">
-                <div className="flex-1">
+              <div className="flex items-center space-x-3">
+                <div className="flex-1 relative">
                   <textarea
                     rows={1}
                     placeholder="Type your message..."
@@ -262,21 +260,21 @@ function ChatPageContent() {
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyPress={handleKeyPress}
                     disabled={isLoading}
-                    className="w-full resize-none border border-gray-300 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed"
+                    className="w-full resize-none border border-gray-300 rounded-2xl px-4 py-3 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed"
                     style={{ minHeight: '44px', maxHeight: '120px' }}
                   />
+                  <Button
+                    onClick={handleSend}
+                    disabled={!inputValue.trim() || isLoading}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 w-8 h-8 rounded-full bg-black hover:bg-gray-800 text-white disabled:opacity-50 disabled:cursor-not-allowed p-0 flex items-center justify-center"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Send className="w-3 h-3" />
+                    )}
+                  </Button>
                 </div>
-                <Button
-                  onClick={handleSend}
-                  disabled={!inputValue.trim() || isLoading}
-                  className="flex-shrink-0 w-11 h-11 rounded-full bg-black hover:bg-gray-800 text-white disabled:opacity-50 disabled:cursor-not-allowed p-0"
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                </Button>
               </div>
             </div>
           </div>
