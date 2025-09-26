@@ -6,11 +6,11 @@ interface RemoteAgentConfig {
 interface AgentResponse {
   id: string
   agent_name: string
-  status: 'pending' | 'processing' | 'completed' | 'failed'
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
   input_content: Array<{ type: string; content: string }>
   output_content: Array<{ type: string; content: string }>
   segments: Array<{
-    type: 'commentary' | 'tool_call' | 'tool_result' | 'final'
+    type: 'commentary' | 'tool_call' | 'tool_result' | 'final' | 'system'
     channel?: string
     text?: string
     tool?: string
@@ -88,11 +88,11 @@ export class RemoteAgentClient {
   }
 
   async getPublishedAgent(name: string): Promise<any> {
-    return this.request<any>(`/api/v0/published/agents/${name}`)
+    return this.request<any>(`/published/agents/${name}`)
   }
 
   async createResponse(agentName: string, data: CreateResponseRequest, signal?: AbortSignal): Promise<AgentResponse> {
-    return this.request<AgentResponse>(`/api/v0/agents/${agentName}/responses`, {
+    return this.request<AgentResponse>(`/agents/${agentName}/responses`, {
       method: 'POST',
       body: JSON.stringify(data),
       signal,
@@ -102,7 +102,7 @@ export class RemoteAgentClient {
   async getResponse(agentName: string, responseId: string): Promise<AgentResponse | null> {
     try {
       // Use the specific response endpoint instead of fetching all responses
-      const response = await this.request<AgentResponse>(`/api/v0/agents/${agentName}/responses/${responseId}`)
+      const response = await this.request<AgentResponse>(`/agents/${agentName}/responses/${responseId}`)
       console.log(`🔄 Polling response ${responseId}: status=${response.status}`)
       return response
     } catch (error) {

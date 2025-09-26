@@ -119,8 +119,8 @@ export async function POST(req: NextRequest) {
     console.log('✅ RemoteAgent response received:', {
       id: response.id,
       status: response.status,
-      hasText: !!response.output?.text,
-      itemsCount: response.output?.items?.length || 0,
+      hasOutputContent: response.output_content?.length > 0,
+      outputContentCount: response.output_content?.length || 0,
       fullResponse: JSON.stringify(response, null, 2).substring(0, 1000) // First 1000 chars for debugging
     })
 

@@ -35,6 +35,13 @@ export async function POST(req: NextRequest) {
     // Get current response status
     const response = await client.getResponse(agentName, responseId)
 
+    if (!response) {
+      return Response.json(
+        { error: 'Response not found or not ready yet' },
+        { status: 404 }
+      )
+    }
+
     const result = {
       success: true,
       responseId: response.id,

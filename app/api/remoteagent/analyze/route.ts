@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       // Create response with background=true (non-blocking) - more reliable
       console.log('🚀 Creating background response for stock analysis...')
       const bgResponse = await client.createResponse(agentName, {
-        input: { text: prompt },
+        input: { content: [{ type: 'text', content: prompt }] },
         background: true // Use background processing for reliability
       })
 
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     console.log('✅ Stock Analysis response received:', {
       id: response.id,
       status: response.status,
-      hasText: !!response.output?.text
+      hasOutputContent: response.output_content?.length > 0
     })
 
     const finalResponse = extractFinalResponse(response)
