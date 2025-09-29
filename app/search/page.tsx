@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { StockSearch } from '@/components/stock-search'
 import { WishlistManager } from '@/components/wishlist-manager'
-import { TradingChart } from '@/components/trading-chart'
+import TradingViewWidget from '@/components/tradingview-widget'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -175,12 +175,17 @@ export default function SearchPage() {
                     </div>
                   </div>
                 ) : chartData.length > 0 ? (
-                  <TradingChart
-                    symbol={`${selectedStock.symbol} - ${selectedStock.name}`}
-                    data={chartData}
+                  <TradingViewWidget
+                    symbol={selectedStock.symbol}
                     currentPrice={selectedStock.price}
                     change={selectedStock.change}
                     changePercent={selectedStock.changePercent}
+                    height={400}
+                    theme="light"
+                    widgetType="symbol-overview"
+                    showDateRanges={true}
+                    showMarketStatus={true}
+                    showSymbolLogo={true}
                   />
                 ) : (
                   <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center border border-gray-200">

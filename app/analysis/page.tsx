@@ -92,19 +92,15 @@ export default function AnalysisPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-base text-gray-600 mb-4">
+              <p className="text-base text-gray-600 mb-6">
                 In-depth market analysis covering sector trends, market sentiment, and macroeconomic factors affecting stock performance.
               </p>
-              <div className="space-y-2 mb-4">
-                <div className="flex justify-between text-base">
-                  <span className="text-gray-500">Market Coverage:</span>
-                  <span className="text-gray-700">Global</span>
-                </div>
-                <div className="flex justify-between text-base">
-                  <span className="text-gray-500">Sectors:</span>
-                  <span className="text-gray-700">All major sectors</span>
-                </div>
-              </div>
+              <Button
+                disabled
+                className="w-full bg-gray-400 text-white py-3 text-base font-medium cursor-not-allowed"
+              >
+                Coming Soon
+              </Button>
             </CardContent>
           </Card>
 
@@ -122,19 +118,15 @@ export default function AnalysisPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-base text-gray-600 mb-4">
+              <p className="text-base text-gray-600 mb-6">
                 Detailed competitive analysis comparing performance against industry peers and market leaders in the same sector.
               </p>
-              <div className="space-y-2 mb-4">
-                <div className="flex justify-between text-base">
-                  <span className="text-gray-500">Peer Companies:</span>
-                  <span className="text-gray-700">Top 10</span>
-                </div>
-                <div className="flex justify-between text-base">
-                  <span className="text-gray-500">Metrics:</span>
-                  <span className="text-gray-700">20+ ratios</span>
-                </div>
-              </div>
+              <Button
+                onClick={() => router.push('/analysis/competitive')}
+                className="w-full bg-black hover:bg-gray-800 text-white py-3 text-base font-medium"
+              >
+                Discuss
+              </Button>
             </CardContent>
           </Card>
         </div>

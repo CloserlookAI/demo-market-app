@@ -2,7 +2,7 @@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { TradingChart } from "@/components/trading-chart"
+import TradingViewWidget from "@/components/tradingview-widget"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { useState, useEffect } from "react"
 import { useRouter } from 'next/navigation'
@@ -117,7 +117,7 @@ export default function StockMarketDashboard() {
     }
     try {
       // Popular stocks to display as trending
-      const popularSymbols = ['AAPL', 'TSLA', 'GOOGL', 'MSFT', 'NVDA', 'AMZN']
+      const popularSymbols = ['GOOGL', 'AAPL', 'TSLA', 'MSFT', 'NVDA', 'AMZN']
 
       // Fetch trending stocks
       const trendingPromises = popularSymbols.map(async (symbol) => {
@@ -435,12 +435,17 @@ export default function StockMarketDashboard() {
                       )}
                     </Button>
                   </div>
-                  <TradingChart
-                    symbol={`${mainStock.symbol} - ${mainStock.name}`}
-                    data={[]}
+                  <TradingViewWidget
+                    symbol={mainStock.symbol}
                     currentPrice={mainStock.price}
                     change={mainStock.change}
                     changePercent={mainStock.changePercent}
+                    height={400}
+                    theme="light"
+                    widgetType="symbol-overview"
+                    showDateRanges={true}
+                    showMarketStatus={true}
+                    showSymbolLogo={true}
                   />
                 </>
               ) : (
