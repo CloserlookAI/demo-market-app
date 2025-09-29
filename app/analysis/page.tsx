@@ -22,11 +22,6 @@ export default function AnalysisPage() {
     }
   }
 
-  const starterQuestions = [
-    "Compare AAPL vs MSFT stock performance over the last year",
-    "Provide a comprehensive technology sector overview for Q4 2024",
-    "Analyze the impact of global trade tensions on semiconductor stocks"
-  ]
 
   return (
     <DashboardLayout hideChatWidget={true}>
@@ -71,19 +66,15 @@ export default function AnalysisPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-base text-gray-600 mb-4">
-                Comprehensive analysis of stock performance including price movements, volume trends, and historical data comparison.
+              <p className="text-base text-gray-600 mb-6">
+                Generate and discuss interactive HTML reports with AI assistance for comprehensive stock performance analysis.
               </p>
-              <div className="space-y-2 mb-4">
-                <div className="flex justify-between text-base">
-                  <span className="text-gray-500">Last Updated:</span>
-                  <span className="text-gray-700">Real-time</span>
-                </div>
-                <div className="flex justify-between text-base">
-                  <span className="text-gray-500">Data Points:</span>
-                  <span className="text-gray-700">15+ metrics</span>
-                </div>
-              </div>
+              <Button
+                onClick={() => router.push('/analysis/discuss')}
+                className="w-full bg-black hover:bg-gray-800 text-white py-3 text-base font-medium"
+              >
+                Discuss
+              </Button>
             </CardContent>
           </Card>
 
@@ -183,22 +174,6 @@ export default function AnalysisPage() {
                 </Button>
               </div>
 
-              {/* Starter Questions */}
-              <div className="space-y-4">
-                <p className="text-base text-gray-700 font-medium">Try asking RemoteAgent about:</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {starterQuestions.map((question, index) => (
-                    <Button
-                      key={index}
-                      variant="outline"
-                      onClick={() => handleStarterClick(question)}
-                      className="text-left text-base p-4 h-auto whitespace-normal border-gray-300 hover:border-black hover:bg-gray-50 transition-all duration-200"
-                    >
-                      {question}
-                    </Button>
-                  ))}
-                </div>
-              </div>
             </CardContent>
           </Card>
         </div>
