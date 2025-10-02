@@ -17,7 +17,7 @@ export function DashboardLayout({ children, hideChatWidget = false }: DashboardL
         {children}
       </main>
       {/* AI Chatbot available across all dashboard routes except when explicitly hidden */}
-      {!hideChatWidget && <AIChatbot />}
+      {/* {!hideChatWidget && <AIChatbot />} */}
     </div>
   )
 }

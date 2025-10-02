@@ -4,8 +4,63 @@ import { convertToModelMessages, streamText, type UIMessage } from "ai"
 export const maxDuration = 30
 
 export async function POST(req: Request) {
-  const { messages }: { messages: UIMessage[] } = await req.json()
+  const body = await req.json()
+  const { messages, message, reportContext, conversationHistory } = body
 
+  // Handle both streaming chat (messages array) and simple Q&A (message + reportContext)
+  if (reportContext && message) {
+    // Simple Q&A mode for report discussion
+    const systemPrompt = `You are StockFlow AI, an expert financial analyst helping users understand stock performance reports.
+
+The user has a stock performance report displayed on their screen with the following content:
+
+${reportContext}
+
+Answer the user's questions about this report accurately and concisely. Reference specific data points from the report when relevant.`
+
+    const apiKey = process.env.PERPLEXITY_API_KEY || process.env.OPENAI_API_KEY
+
+    if (!apiKey) {
+      return Response.json(
+        { success: false, error: "API key not configured" },
+        { status: 500 }
+      )
+    }
+
+    try {
+      // Build conversation history for context
+      const historyMessages = conversationHistory?.map((msg: any) => ({
+        role: msg.type === 'user' ? 'user' : 'assistant',
+        content: msg.content
+      })) || []
+
+      const result = streamText({
+        model: openai("gpt-4o", {
+          apiKey: apiKey,
+          baseURL: process.env.PERPLEXITY_API_KEY ? "https://api.perplexity.ai" : undefined
+        }),
+        messages: [
+          { role: "system" as const, content: systemPrompt },
+          ...historyMessages,
+          { role: "user" as const, content: message }
+        ],
+        maxTokens: 800,
+        temperature: 0.7,
+        abortSignal: req.signal,
+      })
+
+      // Return streaming response
+      return result.toDataStreamResponse()
+    } catch (error: any) {
+      console.error('Chat API error:', error)
+      return Response.json(
+        { success: false, error: error.message || 'Failed to get response' },
+        { status: 500 }
+      )
+    }
+  }
+
+  // Original streaming chat mode
   const systemPrompt = `You are StockFlow AI, an expert financial advisor and stock market analyst. You help users with:
 
 1. Stock analysis and recommendations

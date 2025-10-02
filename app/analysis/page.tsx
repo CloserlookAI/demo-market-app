@@ -136,9 +136,9 @@ export default function AnalysisPage() {
           <Card>
             <CardHeader>
               <div className="flex items-center space-x-3">
-                <div className="p-2 bg-gray-100 rounded-lg">
+                {/* <div className="p-2 bg-gray-100 rounded-lg">
                   <Bot className="w-6 h-6 text-black" />
-                </div>
+                </div> */}
                 <div>
                   <CardTitle className="text-xl text-gray-900">RemoteAgent Assistant</CardTitle>
                   <p className="text-base text-gray-600 mt-1">Ask our AI assistant for detailed market analysis and insights</p>
