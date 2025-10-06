@@ -98,16 +98,16 @@ export default function DiscussPage() {
   }
 
   // Function to load HTML report from a specific agent
-  const loadHtmlFromAgent = async (agentName: string) => {
+  const loadHtmlFromAgent = async (agentName: string, retryCount = 0) => {
     try {
-      console.log('Loading HTML report from agent:', agentName)
+      console.log('Loading HTML report from agent:', agentName, 'retry:', retryCount)
       // Add cache-busting parameter to ensure fresh data
       const timestamp = new Date().getTime()
       const response = await fetch(`/api/agent-files/read?agent=${agentName}&_=${timestamp}`)
       const data = await response.json()
 
       if (data.success && data.content && data.content.trim()) {
-        console.log('HTML content loaded from remixed agent, length:', data.content.length)
+        console.log('HTML content loaded from agent, length:', data.content.length)
         setHtmlContent(data.content)
 
         // Extract text content from HTML for context
@@ -139,9 +139,22 @@ export default function DiscussPage() {
           reportSize,
           contentLength
         })
+      } else {
+        // If content not found and retries left, try loading from parent agent
+        if (retryCount === 0) {
+          console.log('Content not found in remixed agent, trying parent agent...')
+          await loadHtmlFromAgent('stock-performance-overview', 1)
+        } else {
+          console.error('Failed to load HTML from both remixed and parent agent')
+        }
       }
     } catch (error) {
-      console.error('Failed to load HTML from remixed agent:', error)
+      console.error('Failed to load HTML from agent:', error)
+      // If failed and it was remixed agent, try parent agent
+      if (retryCount === 0 && agentName !== 'stock-performance-overview') {
+        console.log('Error loading from remixed agent, trying parent agent...')
+        await loadHtmlFromAgent('stock-performance-overview', 1)
+      }
     }
   }
 
