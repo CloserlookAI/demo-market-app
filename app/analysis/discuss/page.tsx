@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Send, Bot, User, ArrowLeft, Loader2, MessageCircle, FileText, Download, Copy, Edit3, Maximize2, Minimize2 } from "lucide-react"
+import { Send, Bot, User, ArrowLeft, Loader2, MessageCircle, FileText, Download, Copy, Edit3, Maximize2, Minimize2, RefreshCw } from "lucide-react"
 
 interface Message {
   id: string
@@ -29,6 +29,9 @@ export default function DiscussPage() {
   const [htmlContent, setHtmlContent] = useState("")
   const [isCanvasFullscreen, setIsCanvasFullscreen] = useState(false)
   const [reportContext, setReportContext] = useState<string>("")
+  const [currentAgentName, setCurrentAgentName] = useState<string | null>(null)
+  const [isRemixing, setIsRemixing] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [reportStats, setReportStats] = useState<ReportStats>({
     lastUpdated: new Date(),
     stockSymbol: 'Loading Report...',
@@ -39,6 +42,7 @@ export default function DiscussPage() {
   })
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const hasRemixed = useRef(false)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -48,63 +52,125 @@ export default function DiscussPage() {
     scrollToBottom()
   }, [messages, isLoading])
 
-  // Initialize with a welcome message and fetch HTML report
-  useEffect(() => {
-    const welcomeMessage: Message = {
-      id: "welcome",
-      type: "assistant",
-      content: "Hello! I've loaded the stock performance report. You can now ask me questions about the analysis, request specific insights, or discuss any metrics you see in the report.",
-      timestamp: new Date()
+  // Function to create a remixed agent
+  const createRemixedAgent = async (): Promise<string | null> => {
+    if (hasRemixed.current || isRemixing) return currentAgentName
+
+    setIsRemixing(true)
+    hasRemixed.current = true
+
+    try {
+      console.log('Creating remixed agent for new session...')
+      const response = await fetch('/api/agents/remix', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+
+      const data = await response.json()
+
+      if (data.success && data.agent) {
+        console.log('Remixed agent created:', data.agent.name)
+        const agentName = data.agent.name
+        setCurrentAgentName(agentName)
+
+        // Reload HTML content from the remixed agent
+        await loadHtmlFromAgent(agentName)
+
+        return agentName
+      } else {
+        console.error('Failed to create remixed agent:', data.error)
+        return null
+      }
+    } catch (error) {
+      console.error('Error creating remixed agent:', error)
+      return null
+    } finally {
+      setIsRemixing(false)
     }
-    setMessages([welcomeMessage])
+  }
 
-    // Fetch the HTML report from the URL via API route to avoid CORS
-    const fetchHtmlReport = async () => {
+  // Function to load HTML report from a specific agent
+  const loadHtmlFromAgent = async (agentName: string) => {
+    try {
+      console.log('Loading HTML report from agent:', agentName)
+      // Add cache-busting parameter to ensure fresh data
+      const timestamp = new Date().getTime()
+      const response = await fetch(`/api/agent-files/read?agent=${agentName}&_=${timestamp}`)
+      const data = await response.json()
+
+      if (data.success && data.content && data.content.trim()) {
+        console.log('HTML content loaded from remixed agent, length:', data.content.length)
+        setHtmlContent(data.content)
+
+        // Extract text content from HTML for context
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(data.content, 'text/html')
+        const textContent = doc.body.textContent || ""
+        setReportContext(textContent)
+
+        // Update report stats
+        const titleElement = doc.querySelector('h1, h2, title')
+        let stockSymbol = 'Stock Analysis'
+        const titleText = titleElement?.textContent || ''
+        const symbolMatch = titleText.match(/\b[A-Z]{2,5}\b/)
+        if (symbolMatch) {
+          stockSymbol = symbolMatch[0]
+        } else if (titleText.includes('Stock') || titleText.includes('Performance')) {
+          stockSymbol = 'Performance Report'
+        }
+
+        const dataPoints = doc.querySelectorAll('td, tr, .data-point, [class*="value"], [class*="metric"]').length
+        const reportSize = `${(data.content.length / 1024).toFixed(1)} KB`
+        const contentLength = textContent.length
+
+        setReportStats({
+          lastUpdated: new Date(),
+          stockSymbol,
+          dataPoints,
+          analysisType: 'Performance Analysis',
+          reportSize,
+          contentLength
+        })
+      }
+    } catch (error) {
+      console.error('Failed to load HTML from remixed agent:', error)
+    }
+  }
+
+  // Initialize - create remixed agent and load its HTML on page load
+  useEffect(() => {
+    setMessages([])
+
+    const initializeWithRemixedAgent = async () => {
       try {
-        const response = await fetch('/api/fetch-html?url=' + encodeURIComponent('https://ra-hyp-1.raworc.com/content/stock-performance-agent/simple.html'))
-        const data = await response.json()
-        if (data.success) {
-          setHtmlContent(data.html)
+        console.log('Creating remixed agent on page load...')
 
-          // Extract text content from HTML for context (remove HTML tags)
-          const parser = new DOMParser()
-          const doc = parser.parseFromString(data.html, 'text/html')
-          const textContent = doc.body.textContent || ""
-          setReportContext(textContent)
+        // Create the remixed agent immediately
+        const newAgentName = await createRemixedAgent()
 
-          // Extract report statistics
-          const titleElement = doc.querySelector('h1, h2, title')
-          // Try to extract stock symbol or use a better default
-          let stockSymbol = 'Stock Analysis'
-          const titleText = titleElement?.textContent || ''
-          const symbolMatch = titleText.match(/\b[A-Z]{2,5}\b/)
-          if (symbolMatch) {
-            stockSymbol = symbolMatch[0]
-          } else if (titleText.includes('Stock') || titleText.includes('Performance')) {
-            stockSymbol = 'Performance Report'
-          }
-
-          const dataPoints = doc.querySelectorAll('td, tr, .data-point, [class*="value"], [class*="metric"]').length
-          const reportSize = `${(data.html.length / 1024).toFixed(1)} KB`
-          const contentLength = textContent.length
-
-          setReportStats({
-            lastUpdated: new Date(),
-            stockSymbol,
-            dataPoints,
-            analysisType: 'Performance Analysis',
-            reportSize,
-            contentLength
-          })
+        if (newAgentName) {
+          console.log('Remixed agent created on load:', newAgentName)
+          // HTML is already loaded by createRemixedAgent via loadHtmlFromAgent
         } else {
-          console.error('Failed to fetch HTML report:', data.error)
+          console.error('Failed to create remixed agent on load')
+          // Fallback to original report if remix fails
+          const timestamp = new Date().getTime()
+          const response = await fetch(`/api/agent-files/read?_=${timestamp}`)
+          const data = await response.json()
+
+          if (data.success && data.content && data.content.trim()) {
+            console.log('Loaded fallback HTML from original agent')
+            setHtmlContent(data.content)
+          }
         }
       } catch (error) {
-        console.error('Failed to fetch HTML report:', error)
+        console.error('Failed to initialize with remixed agent:', error)
       }
     }
 
-    fetchHtmlReport()
+    initializeWithRemixedAgent()
   }, [])
 
   const handleSend = async () => {
@@ -124,10 +190,59 @@ export default function DiscussPage() {
     setIsLoading(true)
 
     try {
-      // TODO: Implement actual API call for chat
+      // Wait for remixed agent to be ready if still initializing
+      let agentName = currentAgentName
+      let waitCount = 0
+
+      while (!agentName && waitCount < 30) {
+        console.log('Waiting for remixed agent to be ready...')
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        agentName = currentAgentName
+        waitCount++
+      }
+
+      if (!agentName) {
+        throw new Error('Remixed agent not ready. Please refresh and try again.')
+      }
+
+      console.log('Sending message to agent:', agentName)
+
+      // Send message to the remixed agent
+      const response = await fetch('/api/agents/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentName: agentName,
+          message: currentInput
+        })
+      })
+
+      const data = await response.json()
+
+      // Always expect success since backend retries indefinitely
+      if (data.success && data.response) {
+        // Add agent response to messages
+        const assistantMessage: Message = {
+          id: data.response.id || `response-${Date.now()}`,
+          type: 'assistant',
+          content: data.response.text || 'No response received from agent.',
+          timestamp: new Date()
+        }
+        setMessages(prev => [...prev, assistantMessage])
+
+        // Reload the HTML file from the agent to show any changes
+        // Add a small delay to ensure the file is written on the server
+        console.log('Reloading HTML from agent after response...')
+        await new Promise(resolve => setTimeout(resolve, 2000)) // Wait 2 seconds
+        await loadHtmlFromAgent(agentName)
+      }
 
     } catch (error: any) {
-      console.error('Failed to send message:', error)
+      // Log error but don't show to user - just keep loading state
+      console.error('Unexpected error:', error)
+    } finally {
       setIsLoading(false)
     }
   }
@@ -160,6 +275,20 @@ export default function DiscussPage() {
     URL.revokeObjectURL(url)
   }
 
+  const refreshHtml = async () => {
+    if (isRefreshing || !currentAgentName) return
+
+    setIsRefreshing(true)
+    try {
+      console.log('Manually refreshing HTML from agent:', currentAgentName)
+      await loadHtmlFromAgent(currentAgentName)
+    } catch (error) {
+      console.error('Failed to refresh HTML:', error)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
   return (
     <div className="h-screen bg-gray-50 overflow-hidden">
       {/* Top Header */}
@@ -172,7 +301,9 @@ export default function DiscussPage() {
             <h1 className="text-xl font-bold text-gray-900">Stock Performance Discussion</h1>
             <div className="flex items-center space-x-2 text-sm text-gray-500">
               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-              <span className="font-medium">Performance Agent Active</span>
+              <span className="font-medium">
+                {currentAgentName ? `Agent: ${currentAgentName}` : isRemixing ? 'Creating session agent...' : 'Performance Agent Active'}
+              </span>
             </div>
           </div>
         </div>
@@ -231,6 +362,24 @@ export default function DiscussPage() {
                 </div>
               ))}
 
+              {/* Loading Animation */}
+              {isLoading && (
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 flex flex-col items-start">
+                    <div className="inline-block px-6 py-4 bg-white text-gray-900 rounded-[20px] rounded-tl-md border border-gray-200 shadow-sm">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm text-gray-600">Agent responding</span>
+                        <span className="flex space-x-1">
+                          <span className="w-1.5 h-1.5 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                          <span className="w-1.5 h-1.5 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                          <span className="w-1.5 h-1.5 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div ref={messagesEndRef} />
             </div>
 
@@ -281,6 +430,17 @@ export default function DiscussPage() {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={refreshHtml}
+                  disabled={isRefreshing || !currentAgentName}
+                  className="text-xs border-gray-300 hover:bg-gray-50 transition-colors"
+                  title="Refresh report"
+                >
+                  <RefreshCw className={`w-3 h-3 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={copyHtmlContent}
                   disabled={!htmlContent}
                   className="text-xs border-gray-300 hover:bg-gray-50 transition-colors"
@@ -313,42 +473,6 @@ export default function DiscussPage() {
               </div>
             </div>
 
-            {/* Real-time Stats */}
-            {htmlContent && (
-              <div className="space-y-2">
-                {/* Compact Info Grid */}
-                <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg px-4 py-3 border border-gray-200">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-600 font-medium">Report Size</span>
-                      <span className="text-sm font-bold text-gray-900">{reportStats.reportSize}</span>
-                    </div>
-                    <div className="h-px bg-gray-200"></div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-600 font-medium">Content Length</span>
-                      <span className="text-sm font-bold text-gray-900">{reportStats.contentLength.toLocaleString()} chars</span>
-                    </div>
-                    <div className="h-px bg-gray-200"></div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-600 font-medium">Last Updated</span>
-                      <span className="text-sm font-bold text-gray-900">{reportStats.lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Status Indicator */}
-                <div className="bg-black rounded-lg px-4 py-2.5 flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="relative">
-                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                      <div className="absolute inset-0 w-2 h-2 bg-green-400 rounded-full animate-ping opacity-75"></div>
-                    </div>
-                    <span className="text-xs font-bold text-white">Live Preview</span>
-                  </div>
-                  <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Active</span>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* HTML Preview */}
@@ -366,10 +490,18 @@ export default function DiscussPage() {
                 <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mb-6 shadow-sm">
                   <FileText className="w-10 h-10 text-gray-400" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">No Report Generated</h3>
-                <p className="text-gray-500 text-sm max-w-sm leading-relaxed">
-                  Start a conversation with the performance agent to generate your first interactive HTML stock analysis report.
+                <h3 className="text-xl font-bold text-gray-900 mb-3">No Report Available</h3>
+                <p className="text-gray-500 text-sm max-w-sm leading-relaxed mb-4">
+                  The <strong>stock-performance-overview</strong> agent hasn't generated any HTML reports yet.
                 </p>
+                <div className="text-left bg-gray-50 rounded-lg p-4 text-xs text-gray-600 max-w-md border border-gray-200">
+                  <p className="font-semibold mb-2">To generate a report:</p>
+                  <ol className="list-decimal list-inside space-y-1 ml-2">
+                    <li>Execute the stock-performance-overview agent</li>
+                    <li>Ensure it generates an HTML file (e.g., stock_report.html)</li>
+                    <li>The report will automatically appear here</li>
+                  </ol>
+                </div>
               </div>
             )}
           </div>
