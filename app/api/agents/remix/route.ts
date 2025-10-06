@@ -1,5 +1,8 @@
 import { NextRequest } from 'next/server'
 
+// Mark this route as dynamic to prevent static generation
+export const dynamic = 'force-dynamic'
+
 const PARENT_AGENT = 'stock-performance-overview'
 // Remove /api/v0 suffix if present since we'll add it
 const BASE_URL = (process.env.REMOTEAGENT_BASE_URL || 'https://ra-hyp-1.raworc.com').replace(/\/api\/v0$/, '')
