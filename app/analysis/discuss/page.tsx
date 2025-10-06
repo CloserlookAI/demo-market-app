@@ -124,46 +124,7 @@ export default function DiscussPage() {
     setIsLoading(true)
 
     try {
-      // Dummy response for now
-      const dummyResponses = [
-        "Based on the stock performance report, I can see that the key metrics indicate strong momentum. The data shows positive trends in the recent trading sessions with notable volume patterns.",
-        "Looking at the analysis, the technical indicators suggest a bullish outlook. The moving averages are aligned favorably, and the price action demonstrates sustained upward pressure.",
-        "The report highlights several important factors: market volatility has decreased, trading volume is above average, and the overall sentiment appears optimistic based on the recent data points.",
-        "From what I can observe in the report, the stock's performance metrics are showing improvement quarter-over-quarter. The fundamental indicators align well with the technical analysis presented.",
-        "The data reveals interesting patterns in the trading behavior. Price consolidation zones are clearly marked, and the support/resistance levels provide good reference points for decision-making."
-      ]
-
-      const randomResponse = dummyResponses[Math.floor(Math.random() * dummyResponses.length)]
-
-      // Create assistant message with empty content first
-      const assistantMessageId = (Date.now() + 1).toString()
-      const assistantMessage: Message = {
-        id: assistantMessageId,
-        type: 'assistant',
-        content: '',
-        timestamp: new Date()
-      }
-
-      // Add assistant message AFTER a small delay to ensure user message is rendered first
-      setTimeout(() => {
-        setMessages(prev => [...prev, assistantMessage])
-
-        // Simulate streaming by adding characters gradually
-        let currentIndex = 0
-        const typingInterval = setInterval(() => {
-          if (currentIndex <= randomResponse.length) {
-            setMessages(prev => prev.map(msg =>
-              msg.id === assistantMessageId
-                ? { ...msg, content: randomResponse.slice(0, currentIndex) }
-                : msg
-            ))
-            currentIndex += 3
-          } else {
-            clearInterval(typingInterval)
-            setIsLoading(false)
-          }
-        }, 30)
-      }, 100)
+      // TODO: Implement actual API call for chat
 
     } catch (error: any) {
       console.error('Failed to send message:', error)
