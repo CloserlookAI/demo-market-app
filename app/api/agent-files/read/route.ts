@@ -12,9 +12,26 @@ export async function GET(request: NextRequest) {
     const token = process.env.REMOTEAGENT_TOKEN
     const baseUrl = process.env.REMOTEAGENT_BASE_URL
 
+    console.log('Read API - Agent name:', agentName)
+    console.log('Read API - Has token:', !!token)
+    console.log('Read API - Base URL:', baseUrl)
+
     if (!agentName || !token || !baseUrl) {
+      console.error('Missing environment variables:', {
+        hasAgentName: !!agentName,
+        hasToken: !!token,
+        hasBaseUrl: !!baseUrl
+      })
       return NextResponse.json(
-        { success: false, error: 'Missing required environment variables' },
+        {
+          success: false,
+          error: 'Missing required environment variables',
+          details: {
+            hasAgentName: !!agentName,
+            hasToken: !!token,
+            hasBaseUrl: !!baseUrl
+          }
+        },
         { status: 500 }
       )
     }

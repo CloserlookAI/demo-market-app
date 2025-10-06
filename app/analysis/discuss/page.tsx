@@ -54,7 +54,10 @@ export default function DiscussPage() {
 
   // Function to create a remixed agent
   const createRemixedAgent = async (): Promise<string | null> => {
-    if (hasRemixed.current || isRemixing) return currentAgentName
+    if (hasRemixed.current || isRemixing) {
+      console.log('Already remixed or remixing, returning current agent:', currentAgentName)
+      return currentAgentName
+    }
 
     setIsRemixing(true)
     hasRemixed.current = true
@@ -68,19 +71,22 @@ export default function DiscussPage() {
         }
       })
 
+      console.log('Remix API response status:', response.status)
       const data = await response.json()
+      console.log('Remix API response data:', data)
 
       if (data.success && data.agent) {
-        console.log('Remixed agent created:', data.agent.name)
+        console.log('Remixed agent created successfully:', data.agent.name)
         const agentName = data.agent.name
         setCurrentAgentName(agentName)
 
         // Reload HTML content from the remixed agent
+        console.log('Loading HTML from remixed agent:', agentName)
         await loadHtmlFromAgent(agentName)
 
         return agentName
       } else {
-        console.error('Failed to create remixed agent:', data.error)
+        console.error('Failed to create remixed agent:', data.error, data)
         return null
       }
     } catch (error) {
@@ -154,15 +160,41 @@ export default function DiscussPage() {
           console.log('Remixed agent created on load:', newAgentName)
           // HTML is already loaded by createRemixedAgent via loadHtmlFromAgent
         } else {
-          console.error('Failed to create remixed agent on load')
+          console.error('Failed to create remixed agent on load, trying fallback...')
           // Fallback to original report if remix fails
           const timestamp = new Date().getTime()
           const response = await fetch(`/api/agent-files/read?_=${timestamp}`)
           const data = await response.json()
 
+          console.log('Fallback API response:', data)
+
           if (data.success && data.content && data.content.trim()) {
-            console.log('Loaded fallback HTML from original agent')
+            console.log('Loaded fallback HTML from original agent, length:', data.content.length)
             setHtmlContent(data.content)
+
+            // Extract and set report stats
+            const parser = new DOMParser()
+            const doc = parser.parseFromString(data.content, 'text/html')
+            const textContent = doc.body.textContent || ""
+
+            const titleElement = doc.querySelector('h1, h2, title')
+            let stockSymbol = 'Stock Analysis'
+            const titleText = titleElement?.textContent || ''
+            const symbolMatch = titleText.match(/\b[A-Z]{2,5}\b/)
+            if (symbolMatch) {
+              stockSymbol = symbolMatch[0]
+            }
+
+            setReportStats({
+              lastUpdated: new Date(),
+              stockSymbol,
+              dataPoints: doc.querySelectorAll('td, tr').length,
+              analysisType: 'Performance Analysis',
+              reportSize: `${(data.content.length / 1024).toFixed(1)} KB`,
+              contentLength: textContent.length
+            })
+          } else {
+            console.error('Fallback failed:', data.error)
           }
         }
       } catch (error) {
