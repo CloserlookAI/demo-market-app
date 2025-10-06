@@ -319,9 +319,9 @@ export default function DiscussPage() {
 
       {/* Main Content Area */}
       <div className="flex h-[calc(100vh-72px)]">
-        {/* Left Chat - 70% */}
+        {/* Left Chat - 50% */}
         {!isCanvasFullscreen && (
-          <div className="w-[70%] border-r border-gray-200 bg-white flex flex-col">
+          <div className="w-[50%] border-r border-gray-200 bg-white flex flex-col">
             {/* Chat Messages */}
             <div className="flex-1 overflow-y-auto px-8 py-6 space-y-8 bg-gradient-to-b from-white to-gray-50">
               {messages.filter(msg => msg.content.trim()).map((message) => (
@@ -412,8 +412,8 @@ export default function DiscussPage() {
           </div>
         )}
 
-        {/* Right HTML Preview - 30% */}
-        <div className={`${isCanvasFullscreen ? 'w-full' : 'w-[30%]'} bg-gray-100 flex flex-col`}>
+        {/* Right HTML Preview - 50% */}
+        <div className={`${isCanvasFullscreen ? 'w-full' : 'w-[50%]'} bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col`}>
           {/* Canvas Header */}
           <div className="px-6 py-4 border-b border-gray-200 bg-white shadow-sm">
             <div className="flex items-center justify-between mb-4">
@@ -476,34 +476,33 @@ export default function DiscussPage() {
           </div>
 
           {/* HTML Preview */}
-          <div className="flex-1 overflow-hidden bg-white m-4 rounded-xl shadow-sm border border-gray-200">
-            {htmlContent ? (
-              <iframe
-                ref={iframeRef}
-                srcDoc={htmlContent}
-                className="w-full h-full border-none rounded-xl"
-                title="HTML Report Preview"
-                sandbox="allow-same-origin allow-scripts"
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mb-6 shadow-sm">
-                  <FileText className="w-10 h-10 text-gray-400" />
+          <div className="flex-1 overflow-hidden p-6">
+            <div className="h-full bg-white rounded-2xl shadow-lg border-2 border-gray-200 overflow-hidden">
+              {htmlContent ? (
+                <iframe
+                  ref={iframeRef}
+                  srcDoc={htmlContent}
+                  className="w-full h-full border-none"
+                  title="HTML Report Preview"
+                  sandbox="allow-same-origin allow-scripts"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                  <div className="w-24 h-24 bg-gradient-to-br from-blue-50 to-blue-100 rounded-3xl flex items-center justify-center mb-6 shadow-md">
+                    <FileText className="w-12 h-12 text-blue-500" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-3">Loading Report...</h3>
+                  <p className="text-gray-500 text-sm max-w-md leading-relaxed mb-6">
+                    Preparing your stock performance report from the remixed agent.
+                  </p>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  </div>
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">No Report Available</h3>
-                <p className="text-gray-500 text-sm max-w-sm leading-relaxed mb-4">
-                  The <strong>stock-performance-overview</strong> agent hasn't generated any HTML reports yet.
-                </p>
-                <div className="text-left bg-gray-50 rounded-lg p-4 text-xs text-gray-600 max-w-md border border-gray-200">
-                  <p className="font-semibold mb-2">To generate a report:</p>
-                  <ol className="list-decimal list-inside space-y-1 ml-2">
-                    <li>Execute the stock-performance-overview agent</li>
-                    <li>Ensure it generates an HTML file (e.g., stock_report.html)</li>
-                    <li>The report will automatically appear here</li>
-                  </ol>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>
