@@ -3,13 +3,13 @@ import { NextRequest } from 'next/server'
 // Mark this route as dynamic to prevent static generation
 export const dynamic = 'force-dynamic'
 
-const PARENT_AGENT = 'stock-performance-overview'
+const DEFAULT_PARENT_AGENT = 'stock-performance-overview'
 // Remove /api/v0 suffix if present since we'll add it
 const BASE_URL = (process.env.REMOTEAGENT_BASE_URL || 'https://ra-hyp-1.raworc.com').replace(/\/api\/v0$/, '')
 const TOKEN = process.env.REMOTEAGENT_TOKEN
 
 interface RemixRequestBody {
-  sessionId?: string
+  baseAgentName?: string
 }
 
 interface Agent {
@@ -25,9 +25,9 @@ interface Agent {
   is_published: boolean
 }
 
-async function getNextSequentialName(): Promise<string> {
+async function getNextSequentialName(baseAgentName: string): Promise<string> {
   try {
-    const url = `${BASE_URL}/api/v0/agents?q=stock-performance-overview&limit=100`
+    const url = `${BASE_URL}/api/v0/agents?q=${baseAgentName}&limit=100`
     console.log('Listing agents from:', url)
 
     // List all agents that match our naming pattern
@@ -43,7 +43,7 @@ async function getNextSequentialName(): Promise<string> {
       const errorText = await response.text()
       console.error('Failed to list agents. Status:', response.status, 'Response:', errorText)
       // Fall back to sequential numbering starting from 1
-      return `stock-performance-overview-1`
+      return `${baseAgentName}-1`
     }
 
     const data = await response.json()
@@ -53,7 +53,7 @@ async function getNextSequentialName(): Promise<string> {
     // Extract numbers from existing agent names
     const numbers = agents
       .map(agent => {
-        const match = agent.name.match(/^stock-performance-overview-(\d+)$/)
+        const match = agent.name.match(new RegExp(`^${baseAgentName}-(\\d+)$`))
         return match ? parseInt(match[1], 10) : 0
       })
       .filter(num => num > 0)
@@ -63,16 +63,16 @@ async function getNextSequentialName(): Promise<string> {
     // Get the next number in sequence
     const nextNumber = numbers.length > 0 ? Math.max(...numbers) + 1 : 1
 
-    return `stock-performance-overview-${nextNumber}`
+    return `${baseAgentName}-${nextNumber}`
   } catch (error) {
     console.error('Error generating sequential name:', error)
     // Fall back to starting from 1
-    return `stock-performance-overview-1`
+    return `${baseAgentName}-1`
   }
 }
 
-async function remixAgent(newAgentName: string): Promise<Agent> {
-  const url = `${BASE_URL}/api/v0/agents/${PARENT_AGENT}/remix`
+async function remixAgent(parentAgentName: string, newAgentName: string): Promise<Agent> {
+  const url = `${BASE_URL}/api/v0/agents/${parentAgentName}/remix`
   console.log('Remixing agent from:', url)
 
   const response = await fetch(url, {
@@ -102,7 +102,6 @@ export async function POST(req: NextRequest) {
   try {
     console.log('BASE_URL:', BASE_URL)
     console.log('TOKEN exists:', !!TOKEN)
-    console.log('PARENT_AGENT:', PARENT_AGENT)
 
     if (!TOKEN) {
       return Response.json(
@@ -111,13 +110,19 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Generate next sequential agent name
-    const newAgentName = await getNextSequentialName()
+    // Get the base agent name from request body, default to stock-performance-overview
+    const body: RemixRequestBody = await req.json().catch(() => ({}))
+    const baseAgentName = body.baseAgentName || DEFAULT_PARENT_AGENT
 
-    console.log(`Creating remixed agent: ${newAgentName}`)
+    console.log('BASE_AGENT:', baseAgentName)
+
+    // Generate next sequential agent name
+    const newAgentName = await getNextSequentialName(baseAgentName)
+
+    console.log(`Creating remixed agent: ${newAgentName} from parent: ${baseAgentName}`)
 
     // Create the remixed agent
-    const agent = await remixAgent(newAgentName)
+    const agent = await remixAgent(baseAgentName, newAgentName)
 
     return Response.json({
       success: true,

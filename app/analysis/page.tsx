@@ -96,10 +96,10 @@ export default function AnalysisPage() {
                 In-depth market analysis covering sector trends, market sentiment, and macroeconomic factors affecting stock performance.
               </p>
               <Button
-                disabled
-                className="w-full bg-gray-400 text-white py-3 text-base font-medium cursor-not-allowed"
+                onClick={() => router.push('/analysis/market')}
+                className="w-full bg-black hover:bg-gray-800 text-white py-3 text-base font-medium"
               >
-                Coming Soon
+                Discuss
               </Button>
             </CardContent>
           </Card>
