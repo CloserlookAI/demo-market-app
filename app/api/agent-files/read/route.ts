@@ -36,38 +36,74 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get optional file path from query params, default to stock_report.html
-    const filePath = searchParams.get('path') || 'stock_report.html'
+    // Get optional file path from query params, default to report.html
+    const filePath = searchParams.get('path') || 'report.html'
 
-    // Extract the base domain from baseUrl (remove /api/v0)
-    const baseDomain = baseUrl.replace('/api/v0', '')
+    // The actual file is served directly from the content endpoint
+    // Format: https://ra-hyp-1.raworc.com/content/{agent-name}/report.html
+    const pathsToTry = [
+      `${baseUrl.replace('/api/v0', '')}/content/${agentName}/${filePath}`,
+      `${baseUrl}/agents/${agentName}/files/read/${filePath}`,
+      `${baseUrl}/agents/${agentName}/files/read/content/${filePath}`,
+    ]
 
-    // The correct path structure is: baseDomain/content/agentName/fileName
-    const url = `${baseDomain}/content/${agentName}/${filePath}`
+    console.log('Attempting to fetch file from multiple paths...')
 
-    console.log('Fetching file from:', url)
+    let content = ''
+    let lastError = ''
 
-    // Fetch the HTML content directly (no Authorization needed for public content)
-    const response = await fetch(url, {
-      headers: {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+    for (const url of pathsToTry) {
+      try {
+        console.log('Trying path:', url)
+
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+          }
+        })
+
+        console.log('Response status:', response.status)
+
+        if (response.ok) {
+          const responseText = await response.text()
+          console.log('Response content length:', responseText.length)
+
+          if (responseText && responseText.trim().length > 0) {
+            content = responseText
+            console.log('Successfully loaded content from:', url)
+            break
+          } else {
+            console.log('Empty content from:', url)
+            lastError = 'File exists but is empty'
+          }
+        } else {
+          const errorText = await response.text()
+          console.log('Error response:', errorText)
+          lastError = `${response.status}: ${response.statusText}`
+        }
+      } catch (error: any) {
+        console.error('Error fetching from', url, ':', error.message)
+        lastError = error.message
       }
-    })
+    }
 
-    console.log('Response status:', response.status)
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Error response:', errorText)
+    if (!content || content.trim().length === 0) {
+      console.error('Failed to fetch file from all attempted paths. Last error:', lastError)
       return NextResponse.json(
-        { success: false, error: `Failed to fetch file: ${response.statusText}`, details: errorText },
-        { status: response.status }
+        {
+          success: false,
+          error: 'File not found or empty',
+          details: lastError,
+          agentName,
+          filePath,
+          pathsAttempted: pathsToTry
+        },
+        { status: 404 }
       )
     }
 
-    const content = await response.text()
-
-    console.log('Content length:', content.length)
+    console.log('Final content length:', content.length)
 
     return NextResponse.json({
       success: true,

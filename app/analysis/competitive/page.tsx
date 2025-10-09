@@ -41,41 +41,43 @@ function ComparisonWidget({ primarySymbol, compareSymbol, height = 500 }: Compar
     if (!container.current || !primarySymbol) return
 
     const script = document.createElement("script")
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js"
+    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js"
     script.type = "text/javascript"
     script.async = true
 
-    const config = {
-      symbols: compareSymbol ?
-        [[primarySymbol, primarySymbol], [compareSymbol, compareSymbol]] :
-        [[primarySymbol, primarySymbol]],
-      chartOnly: false,
-      width: "100%",
-      height: height,
-      locale: "en",
-      colorTheme: "dark",
-      autosize: true,
-      showVolume: true,
-      showMA: false,
-      hideDateRanges: false,
-      hideMarketStatus: false,
-      hideSymbolLogo: false,
-      scalePosition: "right",
-      scaleMode: "Normal",
-      fontFamily: "-apple-system, BlinkMacSystemFont, Trebuchet MS, Roboto, Ubuntu, sans-serif",
-      fontSize: "10",
-      noTimeScale: false,
-      valuesTracking: "1",
-      changeMode: "price-and-percent",
-      chartType: "line",
-      lineWidth: 2,
-      lineType: 0,
-      ...(compareSymbol && {
-        compareSymbol: {
-          symbol: compareSymbol,
-          position: "SameScale"
+    // Build studies array - add comparison symbol as overlay if present
+    const studies = compareSymbol ? [
+      {
+        id: "compare@tv-basicstudies",
+        inputs: {
+          symbol: compareSymbol
         }
-      })
+      }
+    ] : []
+
+    const config = {
+      symbol: primarySymbol,
+      interval: "D",
+      timezone: "Etc/UTC",
+      theme: "dark",
+      style: "1",
+      locale: "en",
+      enable_publishing: false,
+      hide_top_toolbar: false,
+      hide_legend: false,
+      save_image: false,
+      backgroundColor: "rgba(19, 23, 34, 1)",
+      gridColor: "rgba(42, 46, 57, 0)",
+      hide_side_toolbar: false,
+      allow_symbol_change: true,
+      studies: studies,
+      show_popup_button: false,
+      popup_width: "1000",
+      popup_height: "650",
+      container_id: "tradingview_chart",
+      width: "100%",
+      height: "100%",
+      autosize: true
     }
 
     script.innerHTML = JSON.stringify(config)
@@ -106,8 +108,8 @@ function ComparisonWidget({ primarySymbol, compareSymbol, height = 500 }: Compar
   }
 
   return (
-    <div className="tradingview-widget-container" style={{ height: `${height}px` }}>
-      <div className="tradingview-widget-container__widget h-full" ref={container}></div>
+    <div className="tradingview-widget-container w-full h-full" style={{ width: '100%', height: '100%' }}>
+      <div className="tradingview-widget-container__widget w-full h-full" ref={container} style={{ width: '100%', height: '100%' }}></div>
     </div>
   )
 }
@@ -126,8 +128,13 @@ export default function CompetitivePage() {
   const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [canvasContent, setCanvasContent] = useState("")
+  const [htmlContent, setHtmlContent] = useState("")
+  const [currentAgentName, setCurrentAgentName] = useState<string | null>(null)
+  const [isRemixing, setIsRemixing] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLDivElement>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const hasRemixed = useRef(false)
 
   const popularStocks = [
     { symbol: "AAPL", name: "Apple Inc." },
@@ -139,6 +146,127 @@ export default function CompetitivePage() {
     { symbol: "NVDA", name: "NVIDIA Corp." },
     { symbol: "NFLX", name: "Netflix Inc." },
   ]
+
+  // Function to load HTML from agent
+  const loadHtmlFromAgent = async (agentName: string, retryCount = 0) => {
+    try {
+      console.log('Loading HTML from agent:', agentName, 'retry:', retryCount)
+      // Add cache-busting parameter to ensure fresh data
+      const timestamp = new Date().getTime()
+      const response = await fetch(`/api/agent-files/read?agent=${agentName}&path=report.html&_=${timestamp}`)
+      const data = await response.json()
+
+      console.log('HTML load response:', data)
+
+      if (data.success && data.content && data.content.trim()) {
+        console.log('HTML content loaded successfully, length:', data.content.length)
+        setHtmlContent(data.content)
+        return true
+      } else {
+        console.error('Failed to load HTML:', data.error, data.details)
+        console.log('Paths attempted:', data.pathsAttempted)
+
+        // If content not found and retries left, try loading from parent agent
+        if (retryCount === 0 && agentName !== 'competitive-overview-agent') {
+          console.log('Content not found in remixed agent, trying parent agent...')
+          return await loadHtmlFromAgent('competitive-overview-agent', 1)
+        } else {
+          console.error('Failed to load HTML from both remixed and parent agent')
+          console.error('This likely means the stock_report.html file does not exist in the agent workspace yet')
+          console.error('The agent needs to generate the file first before it can be displayed')
+          return false
+        }
+      }
+    } catch (error) {
+      console.error('Error loading HTML from agent:', error)
+      // If failed and it was remixed agent, try parent agent
+      if (retryCount === 0 && agentName !== 'competitive-overview-agent') {
+        console.log('Error loading from remixed agent, trying parent agent...')
+        return await loadHtmlFromAgent('competitive-overview-agent', 1)
+      }
+      return false
+    }
+  }
+
+  // Function to create a remixed agent
+  const createRemixedAgent = async (): Promise<string | null> => {
+    if (hasRemixed.current || isRemixing) {
+      console.log('Already remixed or remixing, returning current agent:', currentAgentName)
+      return currentAgentName
+    }
+
+    setIsRemixing(true)
+    hasRemixed.current = true
+
+    try {
+      console.log('Creating remixed agent for competitive-overview-agent...')
+      const response = await fetch('/api/agents/remix', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          baseAgentName: 'competitive-overview-agent'
+        })
+      })
+
+      console.log('Remix API response status:', response.status)
+      const data = await response.json()
+      console.log('Remix API response data:', data)
+
+      if (data.success && data.agent) {
+        console.log('Remixed agent created successfully:', data.agent.name)
+        const agentName = data.agent.name
+        setCurrentAgentName(agentName)
+
+        // Reload HTML content from the remixed agent
+        console.log('Loading HTML from remixed agent:', agentName)
+        await loadHtmlFromAgent(agentName)
+
+        return agentName
+      } else {
+        console.error('Failed to create remixed agent:', data.error, data)
+        return null
+      }
+    } catch (error) {
+      console.error('Error creating remixed agent:', error)
+      return null
+    } finally {
+      setIsRemixing(false)
+    }
+  }
+
+  // Initialize with remixed agent on mount
+  useEffect(() => {
+    const initializeWithRemixedAgent = async () => {
+      try {
+        console.log('Initializing with remixed agent...')
+        const agentName = await createRemixedAgent()
+
+        if (!agentName) {
+          console.log('Failed to create remixed agent, attempting fallback to base agent...')
+          // Fallback to base agent if remix fails
+          const timestamp = new Date().getTime()
+          const fallbackResponse = await fetch(`/api/agent-files/read?agent=competitive-overview-agent&path=report.html&_=${timestamp}`)
+          const data = await fallbackResponse.json()
+
+          console.log('Fallback API response:', data)
+
+          if (data.success && data.content && data.content.trim()) {
+            console.log('Loaded fallback HTML from base agent, length:', data.content.length)
+            setHtmlContent(data.content)
+            setCurrentAgentName('competitive-overview-agent')
+          } else {
+            console.error('Fallback failed:', data.error)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to initialize with remixed agent:', error)
+      }
+    }
+
+    initializeWithRemixedAgent()
+  }, [])
 
   // Fetch stock quote
   const getStockQuote = async (symbol: string): Promise<StockQuote | null> => {
@@ -246,54 +374,6 @@ export default function CompetitivePage() {
   }
 
   // Chat functionality
-  const getRemoteAgentResponse = async (prompt: string) => {
-    setIsLoading(true)
-    try {
-      const requestBody = {
-        prompt: `Analyze competitive comparison between ${primaryStock}${compareStock ? ` and ${compareStock}` : ''}: ${prompt}`,
-        symbol: primaryStock,
-        data: { primaryStock, compareStock }
-      }
-
-      const response = await fetch('/api/remoteagent/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      })
-
-      const result = await response.json()
-
-      if (result.success && result.analysis) {
-        const aiResponse: Message = {
-          id: (Date.now() + 1).toString(),
-          type: 'assistant',
-          content: result.analysis,
-          timestamp: new Date()
-        }
-        setMessages(prev => [...prev, aiResponse])
-        setCanvasContent(result.analysis)
-      } else {
-        const errorResponse: Message = {
-          id: (Date.now() + 1).toString(),
-          type: 'assistant',
-          content: result.error || 'Sorry, I encountered an error while processing your request.',
-          timestamp: new Date()
-        }
-        setMessages(prev => [...prev, errorResponse])
-      }
-    } catch (error) {
-      const errorResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        type: 'assistant',
-        content: 'Sorry, I\'m having trouble connecting to the analysis service. Please try again later.',
-        timestamp: new Date()
-      }
-      setMessages(prev => [...prev, errorResponse])
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return
 
@@ -307,7 +387,70 @@ export default function CompetitivePage() {
     setMessages(prev => [...prev, userMessage])
     const currentInput = inputValue
     setInputValue("")
-    await getRemoteAgentResponse(currentInput)
+
+    setIsLoading(true)
+
+    try {
+      // Wait for remixed agent to be ready if still initializing
+      let agentName = currentAgentName
+      let waitCount = 0
+
+      while (!agentName && waitCount < 30) {
+        console.log('Waiting for remixed agent to be ready...')
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        agentName = currentAgentName
+        waitCount++
+      }
+
+      if (!agentName) {
+        throw new Error('Remixed agent not ready. Please refresh and try again.')
+      }
+
+      console.log('Sending message to agent:', agentName)
+
+      // Send message to the remixed agent (use original input without modification)
+      const response = await fetch('/api/agents/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentName: agentName,
+          message: currentInput
+        })
+      })
+
+      const data = await response.json()
+
+      // Always expect success since backend retries indefinitely
+      if (data.success && data.response) {
+        // Add agent response to messages
+        const assistantMessage: Message = {
+          id: data.response.id || `response-${Date.now()}`,
+          type: 'assistant',
+          content: data.response.text || 'No response received from agent.',
+          timestamp: new Date()
+        }
+        setMessages(prev => [...prev, assistantMessage])
+
+        // Reload the HTML file from the agent to show any changes
+        console.log('Reloading HTML from agent after response...')
+        await new Promise(resolve => setTimeout(resolve, 2000)) // Wait 2 seconds
+        await loadHtmlFromAgent(agentName)
+      }
+
+    } catch (error: any) {
+      console.error('Unexpected error:', error)
+      const errorMessage: Message = {
+        id: `error-${Date.now()}`,
+        type: 'assistant',
+        content: 'Sorry, I encountered an error while processing your request. Please try again.',
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -319,20 +462,23 @@ export default function CompetitivePage() {
 
   const copyCanvasContent = async () => {
     try {
-      await navigator.clipboard.writeText(canvasContent)
+      await navigator.clipboard.writeText(htmlContent)
+      alert('HTML content copied to clipboard!')
     } catch (err) {
       console.error('Failed to copy text: ', err)
     }
   }
 
   const downloadCanvasContent = () => {
+    const blob = new Blob([htmlContent], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
     const element = document.createElement('a')
-    const file = new Blob([canvasContent], { type: 'text/plain' })
-    element.href = URL.createObjectURL(file)
-    element.download = `competitive-analysis-${primaryStock}${compareStock ? `-vs-${compareStock}` : ''}-${new Date().toISOString().split('T')[0]}.txt`
+    element.href = url
+    element.download = `competitive-analysis-${primaryStock}${compareStock ? `-vs-${compareStock}` : ''}-${new Date().toISOString().split('T')[0]}.html`
     document.body.appendChild(element)
     element.click()
     document.body.removeChild(element)
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -354,7 +500,9 @@ export default function CompetitivePage() {
             <h1 className="text-lg font-semibold text-gray-900">Competitive Analysis</h1>
             <div className="flex items-center space-x-2 text-sm text-gray-500">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span>Real-time comparison</span>
+              <span>
+                {currentAgentName ? `Agent: ${currentAgentName}` : isRemixing ? 'Creating session agent...' : 'Real-time comparison'}
+              </span>
             </div>
           </div>
         </div>
@@ -522,12 +670,12 @@ export default function CompetitivePage() {
         </div>
       </div>
 
-      {/* Main Content Area - 60-40 Split */}
+      {/* Main Content Area - 35-65 Split */}
       <div className="flex h-[calc(100vh-64px)]">
-        {/* Left Side - Chat Interface (60%) */}
-        <div className="w-[60%] border-r border-gray-200 bg-white flex flex-col">
+        {/* Left Side - Chat Interface (35%) */}
+        <div className="w-[35%] border-r border-gray-200 bg-white flex flex-col">
           {/* Chat Messages */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.length === 0 && !isLoading && (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
@@ -620,8 +768,8 @@ export default function CompetitivePage() {
           </div>
 
           {/* Chat Input */}
-          <div className="border-t border-gray-200 bg-white p-6">
-            <div className="flex items-center space-x-3">
+          <div className="border-t border-gray-200 bg-white p-4">
+            <div className="flex items-center space-x-2">
               <div className="flex-1 relative">
                 <textarea
                   rows={1}
@@ -652,38 +800,21 @@ export default function CompetitivePage() {
           </div>
         </div>
 
-        {/* Right Side - Chart & Analysis (40%) */}
-        <div className="w-[40%] bg-white flex flex-col">
+        {/* Right Side - Chart & Analysis (65%) */}
+        <div className="w-[65%] bg-white flex flex-col">
           {/* Chart Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
             <div className="flex items-center space-x-2">
-              <FileText className="w-5 h-5 text-gray-600" />
+              <TrendingUp className="w-5 h-5 text-blue-600" />
               <span className="font-medium text-gray-900">
-                {isComparing && compareStock
-                  ? `${primaryStock} vs ${compareStock} Chart`
-                  : `${primaryStock} Performance Chart`
-                }
+                {primaryStock ? (
+                  isComparing && compareStock
+                    ? `${primaryStock} vs ${compareStock}`
+                    : `${primaryStock} Performance`
+                ) : 'Chart & Analysis'}
               </span>
             </div>
             <div className="flex items-center space-x-2">
-              {canvasContent && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={copyCanvasContent}
-                  >
-                    <Copy className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={downloadCanvasContent}
-                  >
-                    <Download className="w-4 h-4" />
-                  </Button>
-                </>
-              )}
               {isComparing && compareStock && (
                 <Button
                   variant="outline"
@@ -698,56 +829,137 @@ export default function CompetitivePage() {
           </div>
 
           {/* Chart Content */}
-          <div className="flex-1 flex flex-col">
-            {/* TradingView Chart */}
-            <div className="flex-1 bg-gray-900 min-h-0">
-              <div className="h-full p-2">
-                {primaryStock ? (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* TradingView Chart - Smaller for more report space */}
+            <div className="h-[35%] bg-gray-900 border-b border-gray-700 flex items-center justify-center p-2">
+              {primaryStock ? (
+                <div className="w-full h-full">
                   <ComparisonWidget
                     primarySymbol={primaryStock}
                     compareSymbol={isComparing ? compareStock : undefined}
-                    height={380}
+                    height={350}
                   />
-                ) : (
-                  <div className="h-full flex items-center justify-center bg-gray-900 text-white">
-                    <div className="text-center">
-                      <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Search className="w-8 h-8 text-gray-400" />
-                      </div>
-                      <h3 className="text-lg font-medium mb-2">No Stock Selected</h3>
-                      <p className="text-gray-400">Use "Add Stock to Compare" to select a stock</p>
+                </div>
+              ) : (
+                <div className="h-full flex items-center justify-center bg-gray-900 text-white">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Search className="w-8 h-8 text-gray-400" />
                     </div>
+                    <h3 className="text-lg font-medium mb-2">No Stock Selected</h3>
+                    <p className="text-gray-400">Use "Add Stock to Compare" to select a stock</p>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
 
-            {/* Analysis Canvas */}
-            <div className="flex-1 border-t border-gray-200 min-h-0">
-              <div className="p-4 h-full overflow-y-auto"
-                   style={{ maxHeight: 'calc(50vh - 200px)' }}>
-                {canvasContent ? (
-                  <div
-                    className="prose prose-sm max-w-none text-gray-800 leading-relaxed h-full"
-                    style={{
-                      fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
-                    }}
-                  >
-                    <pre className="whitespace-pre-wrap text-xs leading-relaxed text-gray-800">
-                      {canvasContent}
-                    </pre>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-center">
-                    <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mb-3">
-                      <FileText className="w-6 h-6 text-gray-400" />
+            {/* Analysis Report Canvas - Much more space */}
+            <div className="h-[65%] bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
+              {/* Canvas Header */}
+              <div className="px-6 py-4 border-b border-gray-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center">
+                      <FileText className="w-4 h-4 text-blue-600" />
                     </div>
-                    <h3 className="text-base font-medium text-gray-900 mb-2">Analysis Results</h3>
-                    <p className="text-gray-500 text-sm max-w-xs">
-                      Start a conversation to generate competitive analysis that will appear here.
-                    </p>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm font-bold text-gray-900">Competitive Analysis Report</h3>
+                      <p className="text-xs text-gray-600 truncate font-medium">
+                        {primaryStock ? (
+                          isComparing && compareStock
+                            ? `${primaryStock} vs ${compareStock}`
+                            : primaryStock
+                        ) : 'No stock selected'}
+                      </p>
+                    </div>
                   </div>
-                )}
+                  <div className="flex items-center space-x-2">
+                    {htmlContent && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={copyCanvasContent}
+                          className="text-xs border-gray-300 hover:bg-gray-50 transition-colors"
+                        >
+                          <Copy className="w-3 h-3 mr-1" />
+                          Copy
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={downloadCanvasContent}
+                          className="text-xs border-gray-300 hover:bg-gray-50 transition-colors"
+                        >
+                          <Download className="w-3 h-3 mr-1" />
+                          Download
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Report Content */}
+              <div className="flex-1 overflow-hidden p-6">
+                <div className="h-full bg-white rounded-2xl shadow-lg border-2 border-gray-200 overflow-hidden">
+                  {isRemixing || (!htmlContent && !isLoading) ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                      <div className="w-24 h-24 bg-gradient-to-br from-blue-50 to-blue-100 rounded-3xl flex items-center justify-center mb-6 shadow-md">
+                        <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
+                      </div>
+                      <h3 className="text-2xl font-bold text-gray-900 mb-3">Loading Report...</h3>
+                      <p className="text-gray-500 text-sm max-w-md leading-relaxed mb-6">
+                        Preparing your competitive analysis report from the agent.
+                      </p>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                      </div>
+                    </div>
+                  ) : htmlContent ? (
+                    <iframe
+                      ref={iframeRef}
+                      srcDoc={htmlContent}
+                      className="w-full h-full border-none"
+                      title="Competitive Analysis Report"
+                      sandbox="allow-same-origin allow-scripts"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                      <div className="w-24 h-24 bg-gradient-to-br from-blue-50 to-blue-100 rounded-3xl flex items-center justify-center mb-6 shadow-md">
+                        <FileText className="w-12 h-12 text-blue-500" />
+                      </div>
+                      <h3 className="text-2xl font-bold text-gray-900 mb-3">Ready for Analysis</h3>
+                      <p className="text-gray-500 text-sm max-w-md leading-relaxed mb-6">
+                        {primaryStock
+                          ? `Ask the AI assistant to analyze ${primaryStock}${compareStock ? ` vs ${compareStock}` : ' and its competitors'}. Your analysis report will appear here.`
+                          : 'Select a stock above and start a conversation to generate competitive analysis reports.'}
+                      </p>
+                      {primaryStock && (
+                        <div className="flex flex-col space-y-2 mt-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setInputValue(`Compare ${primaryStock}${compareStock ? ` with ${compareStock}` : ' with its main competitors'} in terms of market performance`)}
+                            className="text-xs"
+                          >
+                            Market Performance Comparison
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setInputValue(`Analyze competitive advantages of ${primaryStock}${compareStock ? ` vs ${compareStock}` : ''}`)}
+                            className="text-xs"
+                          >
+                            Competitive Advantages Analysis
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
